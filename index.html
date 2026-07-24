@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Welcome | Choir App</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <h1>Our Choir</h1>
+  <nav class="site-nav">
+    <a href="index.html" aria-current="page">Home</a>
+    <a href="schedule.html">Schedule</a>
+    <a href="songs.html">Songs</a>
+    <a href="lyrics.html">Lyrics</a>
+    <a href="announcements.html">Announcements</a>
+    <a href="volunteer.html">Volunteer</a>
+    <a href="recognition.html">Recognition</a>
+    <a href="sponsors.html">Sponsors &amp; Giving</a>
+    <a href="folders.html">Music Folders</a>
+    <a href="join.html">Join Us</a>
+  </nav>
+</header>
+<main>
+  <h2>Welcome!</h2>
+  <div id="content">Loading welcome message&hellip;</div>
+</main>
+<footer class="site-footer">Choir App &mdash; built for our community</footer>
+<script src="js/api.js"></script>
+<script>
+  (async () => {
+    const el = document.getElementById('content');
+    try {
+      const settings = await fetchData('settings');
+      const welcome = (settings.find(s => s.Key === 'WelcomeMessage') || {}).Value;
+      el.innerHTML = welcome
+        ? `<div class="card">${welcome}</div>`
+        : `<p class="placeholder-note">No welcome message has been set yet. The director can add one in the Settings tab of the Sheet.</p>`;
+    } catch (e) {
+      showPlaceholder(el, "This page will show a welcome message from the director once the site is connected to the Google Sheet (Phase 1).");
+    }
+  })();
+</script>
+</body>
+</html>

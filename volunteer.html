@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Volunteer | Choir App</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <h1>Our Choir</h1>
+  <nav class="site-nav">
+    <a href="index.html">Home</a>
+    <a href="schedule.html">Schedule</a>
+    <a href="songs.html">Songs</a>
+    <a href="lyrics.html">Lyrics</a>
+    <a href="announcements.html">Announcements</a>
+    <a href="volunteer.html" aria-current="page">Volunteer</a>
+    <a href="recognition.html">Recognition</a>
+    <a href="sponsors.html">Sponsors &amp; Giving</a>
+    <a href="folders.html">Music Folders</a>
+    <a href="join.html">Join Us</a>
+  </nav>
+</header>
+<main>
+  <h2>Volunteer Signups</h2>
+  <div id="content">Loading&hellip;</div>
+</main>
+<footer class="site-footer">Choir App &mdash; built for our community</footer>
+<script src="js/api.js"></script>
+<script>
+  (async () => {
+    const el = document.getElementById('content');
+    try {
+      const rows = await fetchData('volunteerStatus');
+      if (!rows.length) {
+        el.innerHTML = `<p class="placeholder-note">No volunteer tasks posted yet.</p>`;
+        return;
+      }
+      el.innerHTML = rows.map(r => `
+        <div class="card">
+          <h3>${r.TaskName || ''}</h3>
+          <p><strong>${r.Date || ''}</strong></p>
+          <p>${r.SlotsFilled ?? 0} of ${r.SlotsNeeded ?? 0} slots filled</p>
+          <button class="btn" disabled>Sign up (coming in Phase 3)</button>
+        </div>
+      `).join('');
+    } catch (e) {
+      showPlaceholder(el, "This page will show volunteer tasks (like setting up chairs) with live slot counts and a sign-up button that locks the slot once claimed. Coming in Phase 3, once connected to the Google Sheet.");
+    }
+  })();
+</script>
+</body>
+</html>

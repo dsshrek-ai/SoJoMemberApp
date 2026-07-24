@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recognition | Choir App</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <h1>Our Choir</h1>
+  <nav class="site-nav">
+    <a href="index.html">Home</a>
+    <a href="schedule.html">Schedule</a>
+    <a href="songs.html">Songs</a>
+    <a href="lyrics.html">Lyrics</a>
+    <a href="announcements.html">Announcements</a>
+    <a href="volunteer.html">Volunteer</a>
+    <a href="recognition.html" aria-current="page">Recognition</a>
+    <a href="sponsors.html">Sponsors &amp; Giving</a>
+    <a href="folders.html">Music Folders</a>
+    <a href="join.html">Join Us</a>
+  </nav>
+</header>
+<main>
+  <h2>Member Recognition</h2>
+  <div id="content">Loading&hellip;</div>
+</main>
+<footer class="site-footer">Choir App &mdash; built for our community</footer>
+<script src="js/api.js"></script>
+<script>
+  (async () => {
+    const el = document.getElementById('content');
+    try {
+      const rows = await fetchData('recognition');
+      if (!rows.length) {
+        el.innerHTML = `<p class="placeholder-note">No recognitions posted yet.</p>`;
+        return;
+      }
+      const sorted = rows.slice().sort((a, b) => new Date(b.Date) - new Date(a.Date));
+      el.innerHTML = sorted.map(r => `
+        <div class="card">
+          <p><strong>${r.Date || ''}</strong></p>
+          <p>${r.MemberName ? `<strong>${r.MemberName}</strong> &mdash; ` : ''}${r.Message || ''}</p>
+        </div>
+      `).join('');
+    } catch (e) {
+      showPlaceholder(el, "This page will celebrate members — birthdays, service milestones, shout-outs — once the site is connected to the Google Sheet (Phase 1).");
+    }
+  })();
+</script>
+</body>
+</html>

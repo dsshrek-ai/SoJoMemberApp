@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Music Folders | Choir App</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <h1>Our Choir</h1>
+  <nav class="site-nav">
+    <a href="index.html">Home</a>
+    <a href="schedule.html">Schedule</a>
+    <a href="songs.html">Songs</a>
+    <a href="lyrics.html">Lyrics</a>
+    <a href="announcements.html">Announcements</a>
+    <a href="volunteer.html">Volunteer</a>
+    <a href="recognition.html">Recognition</a>
+    <a href="sponsors.html">Sponsors &amp; Giving</a>
+    <a href="folders.html" aria-current="page">Music Folders</a>
+    <a href="join.html">Join Us</a>
+  </nav>
+</header>
+<main>
+  <h2>Music Folder Assignments</h2>
+  <input type="text" id="search" placeholder="Search your name&hellip;">
+  <div id="content">Loading&hellip;</div>
+</main>
+<footer class="site-footer">Choir App &mdash; built for our community</footer>
+<script src="js/api.js"></script>
+<script>
+  let allRows = [];
+  function render(rows) {
+    const el = document.getElementById('content');
+    if (!rows.length) {
+      el.innerHTML = `<p class="placeholder-note">No matches found.</p>`;
+      return;
+    }
+    el.innerHTML = rows.map(r => `
+      <div class="card">
+        <strong>${r.MemberName || ''}</strong> &mdash; Folder ${r.FolderAssignment || ''}
+      </div>
+    `).join('');
+  }
+  (async () => {
+    const el = document.getElementById('content');
+    try {
+      allRows = await fetchData('folders');
+      render(allRows);
+      document.getElementById('search').addEventListener('input', (ev) => {
+        const q = ev.target.value.toLowerCase();
+        render(allRows.filter(r => (r.MemberName || '').toLowerCase().includes(q)));
+      });
+    } catch (e) {
+      showPlaceholder(el, "This page will let you look up your music folder number once the site is connected to the Google Sheet (Phase 1).");
+    }
+  })();
+</script>
+</body>
+</html>

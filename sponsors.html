@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sponsors &amp; Giving | Choir App</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <h1>Our Choir</h1>
+  <nav class="site-nav">
+    <a href="index.html">Home</a>
+    <a href="schedule.html">Schedule</a>
+    <a href="songs.html">Songs</a>
+    <a href="lyrics.html">Lyrics</a>
+    <a href="announcements.html">Announcements</a>
+    <a href="volunteer.html">Volunteer</a>
+    <a href="recognition.html">Recognition</a>
+    <a href="sponsors.html" aria-current="page">Sponsors &amp; Giving</a>
+    <a href="folders.html">Music Folders</a>
+    <a href="join.html">Join Us</a>
+  </nav>
+</header>
+<main>
+  <h2>Sponsors &amp; Giving</h2>
+  <div id="donate-content"></div>
+  <h2>Our Sponsors</h2>
+  <div id="content">Loading&hellip;</div>
+</main>
+<footer class="site-footer">Choir App &mdash; built for our community</footer>
+<script src="js/api.js"></script>
+<script>
+  (async () => {
+    const donateEl = document.getElementById('donate-content');
+    try {
+      const settings = await fetchData('settings');
+      const donationUrl = (settings.find(s => s.Key === 'DonationURL') || {}).Value;
+      donateEl.innerHTML = donationUrl
+        ? `<div class="card"><a class="btn" href="${donationUrl}" target="_blank" rel="noopener">Support the Choir</a></div>`
+        : `<p class="placeholder-note">No donation link has been set yet.</p>`;
+    } catch (e) {
+      showPlaceholder(donateEl, "A donation link will appear here once the site is connected to the Google Sheet (Phase 1).");
+    }
+
+    const el = document.getElementById('content');
+    try {
+      const rows = await fetchData('sponsors');
+      if (!rows.length) {
+        el.innerHTML = `<p class="placeholder-note">No sponsors listed yet.</p>`;
+        return;
+      }
+      el.innerHTML = rows.map(r => `
+        <div class="card">
+          <h3>${r.SponsorName || ''}</h3>
+          ${r.Tier ? `<span class="badge">${r.Tier}</span>` : ''}
+          ${r.Message ? `<p>${r.Message}</p>` : ''}
+          ${r.LogoURL ? `<p><a href="${r.LogoURL}" target="_blank" rel="noopener">Learn more</a></p>` : ''}
+        </div>
+      `).join('');
+    } catch (e) {
+      showPlaceholder(el, "This page will recognize our sponsors once the site is connected to the Google Sheet (Phase 1).");
+    }
+  })();
+</script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Join Us | Choir App</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site-header">
+  <h1>Our Choir</h1>
+  <nav class="site-nav">
+    <a href="index.html">Home</a>
+    <a href="schedule.html">Schedule</a>
+    <a href="songs.html">Songs</a>
+    <a href="lyrics.html">Lyrics</a>
+    <a href="announcements.html">Announcements</a>
+    <a href="volunteer.html">Volunteer</a>
+    <a href="recognition.html">Recognition</a>
+    <a href="sponsors.html">Sponsors &amp; Giving</a>
+    <a href="folders.html">Music Folders</a>
+    <a href="join.html" aria-current="page">Join Us</a>
+  </nav>
+</header>
+<main>
+  <h2>New Members &amp; Auditions</h2>
+  <div id="content">Loading&hellip;</div>
+</main>
+<footer class="site-footer">Choir App &mdash; built for our community</footer>
+<script src="js/api.js"></script>
+<script>
+  (async () => {
+    const el = document.getElementById('content');
+    try {
+      const settings = await fetchData('settings');
+      const val = (key) => (settings.find(s => s.Key === key) || {}).Value;
+      const registrationUrl = val('NewMemberFormURL');
+      const auditionText = val('AuditionInfoText');
+      const auditionUrl = val('AuditionFormURL');
+      el.innerHTML = `
+        <div class="card">
+          <h3>New Member Registration</h3>
+          ${registrationUrl ? `<p><a class="btn" href="${registrationUrl}" target="_blank" rel="noopener">Register Here</a></p>` : '<p class="placeholder-note">Registration link not set yet.</p>'}
+        </div>
+        <div class="card">
+          <h3>Audition Opportunities</h3>
+          ${auditionText ? `<p>${auditionText}</p>` : ''}
+          ${auditionUrl ? `<p><a class="btn" href="${auditionUrl}" target="_blank" rel="noopener">Sign Up to Audition</a></p>` : ''}
+        </div>
+      `;
+    } catch (e) {
+      showPlaceholder(el, "This page will link to new-member registration and audition sign-up once the site is connected to the Google Sheet (Phase 1).");
+    }
+  })();
+</script>
+</body>
+</html>
