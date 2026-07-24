@@ -8,7 +8,7 @@
 </head>
 <body>
 <header class="site-header">
-  <h1>Our Choir</h1>
+  <h1>South Jordan Choral Arts Community Choir</h1>
   <nav class="site-nav">
     <a href="index.html">Home</a>
     <a href="schedule.html">Schedule</a>
@@ -24,31 +24,76 @@
 </header>
 <main>
   <h2>Volunteer Signups</h2>
+  <div id="status" class="placeholder-note" style="display:none;"></div>
   <div id="content">Loading&hellip;</div>
 </main>
 <footer class="site-footer">Choir App &mdash; built for our community</footer>
 <script src="js/api.js"></script>
 <script>
-  (async () => {
-    const el = document.getElementById('content');
+  const contentEl = document.getElementById('content');
+  const statusEl = document.getElementById('status');
+
+  function showStatus(message) {
+    statusEl.textContent = message;
+    statusEl.style.display = '';
+  }
+
+  async function loadAndRender() {
+    let rows;
     try {
-      const rows = await fetchData('volunteerStatus');
-      if (!rows.length) {
-        el.innerHTML = `<p class="placeholder-note">No volunteer tasks posted yet.</p>`;
-        return;
-      }
-      el.innerHTML = rows.map(r => `
-        <div class="card">
-          <h3>${r.TaskName || ''}</h3>
-          <p><strong>${r.Date || ''}</strong></p>
-          <p>${r.SlotsFilled ?? 0} of ${r.SlotsNeeded ?? 0} slots filled</p>
-          <button class="btn" disabled>Sign up (coming in Phase 3)</button>
-        </div>
-      `).join('');
+      rows = await fetchData('volunteerStatus');
     } catch (e) {
-      showPlaceholder(el, "This page will show volunteer tasks (like setting up chairs) with live slot counts and a sign-up button that locks the slot once claimed. Coming in Phase 3, once connected to the Google Sheet.");
+      showPlaceholder(contentEl, "This page will show volunteer tasks (like setting up chairs) with live slot counts and a sign-up button that locks the slot once claimed, once connected to the Google Sheet.");
+      return;
     }
-  })();
+    if (!rows.length) {
+      contentEl.innerHTML = `<p class="placeholder-note">No volunteer tasks posted yet.</p>`;
+      return;
+    }
+    contentEl.innerHTML = rows.map(r => {
+      const full = (r.SlotsFilled ?? 0) >= (r.SlotsNeeded ?? 0);
+      return `
+        <div class="card">
+          <h3>${escapeHtml(r.TaskName)}</h3>
+          <p><strong>${escapeHtml(r.Date)}</strong></p>
+          <p>${r.SlotsFilled ?? 0} of ${r.SlotsNeeded ?? 0} slots filled</p>
+          <button class="btn" data-date="${escapeHtml(r.Date)}" data-task="${escapeHtml(r.TaskName)}" ${full ? 'disabled' : ''}>
+            ${full ? 'Full' : 'Sign Up'}
+          </button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  contentEl.addEventListener('click', async (ev) => {
+    const button = ev.target.closest('button[data-task]');
+    if (!button || button.disabled) return;
+
+    const volunteerName = prompt('Your name, for the sign-up sheet:');
+    if (!volunteerName || !volunteerName.trim()) return;
+
+    button.disabled = true;
+    button.textContent = 'Signing up…';
+    try {
+      const result = await postAction('claimSlot', {
+        date: button.dataset.date,
+        taskName: button.dataset.task,
+        volunteerName: volunteerName.trim(),
+      });
+      if (result.ok) {
+        showStatus(`Thanks, ${volunteerName.trim()}! You're signed up for "${button.dataset.task}".`);
+      } else if (result.reason === 'full') {
+        showStatus('Sorry, that slot just filled up.');
+      } else {
+        showStatus('Something went wrong signing up. Please try again.');
+      }
+    } catch (e) {
+      showStatus('Something went wrong signing up. Please try again.');
+    }
+    loadAndRender();
+  });
+
+  loadAndRender();
 </script>
 </body>
 </html>

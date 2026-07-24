@@ -46,3 +46,10 @@ async function postAction(action, payload) {
 function showPlaceholder(container, message) {
   container.innerHTML = `<p class="placeholder-note">${message}</p>`;
 }
+
+// Escapes text before dropping it into innerHTML, since sheet content is free-form text.
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str ?? '';
+  return div.innerHTML;
+}
