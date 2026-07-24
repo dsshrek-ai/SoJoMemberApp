@@ -19,11 +19,21 @@ var ADMIN_SHEETS = [
   "VolunteerSignups", "Absences", "Recognition", "MusicFolders", "Sponsors", "Settings",
 ];
 
+// The public `settings` action must NOT return every row in the Settings tab — that tab
+// also holds AdminPassword and DirectorEmail. Only these keys are safe for every visitor
+// to see. Add new public-facing settings keys here explicitly (allowlist, not blocklist).
+var PUBLIC_SETTINGS_KEYS = [
+  "WelcomeMessage", "DonationURL", "NewMemberFormURL", "AuditionInfoText", "AuditionFormURL",
+];
+
 function doGet(e) {
   var action = e.parameter.action;
 
   if (action === "volunteerStatus") {
     return jsonResponse(getVolunteerStatus());
+  }
+  if (action === "settings") {
+    return jsonResponse(getPublicSettings());
   }
 
   var sheetName = READ_ACTIONS[action];
@@ -31,6 +41,12 @@ function doGet(e) {
     return jsonResponse({ error: "Unknown action: " + action });
   }
   return jsonResponse(sheetToObjects(sheetName));
+}
+
+function getPublicSettings() {
+  return sheetToObjects("Settings").filter(function (s) {
+    return PUBLIC_SETTINGS_KEYS.indexOf(s.Key) !== -1;
+  });
 }
 
 function doPost(e) {
