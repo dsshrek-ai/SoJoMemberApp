@@ -136,6 +136,28 @@ select, input[type="text"] {
   max-width: 320px;
 }
 
+#picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1.25rem;
+}
+
+#picker label {
+  font-weight: bold;
+}
+
+#picker select {
+  width: auto;
+  min-width: 200px;
+}
+
+.lyrics-text {
+  font-size: 1.4rem;
+  line-height: 1.8;
+}
+
 footer.site-footer {
   text-align: center;
   padding: 1.5rem 1rem;

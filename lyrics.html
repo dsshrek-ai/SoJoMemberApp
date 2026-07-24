@@ -24,19 +24,72 @@
 </header>
 <main>
   <h2>Lyrics by Part</h2>
+  <div id="picker" style="display:none;">
+    <label for="song-select">Song</label>
+    <select id="song-select"></select>
+    <label for="part-select">Part</label>
+    <select id="part-select"></select>
+  </div>
   <div id="content">Loading&hellip;</div>
 </main>
 <footer class="site-footer">Choir App &mdash; built for our community</footer>
 <script src="js/api.js"></script>
 <script>
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = str ?? '';
+    return div.innerHTML;
+  }
+
   (async () => {
-    const el = document.getElementById('content');
+    const contentEl = document.getElementById('content');
+    const pickerEl = document.getElementById('picker');
+    const songSelect = document.getElementById('song-select');
+    const partSelect = document.getElementById('part-select');
+
+    let rows = [];
     try {
-      await fetchData('lyrics');
-      el.innerHTML = `<p class="placeholder-note">Lyrics data is connected. The pick-a-song, pick-a-part quick view is coming in Phase 2.</p>`;
+      rows = await fetchData('lyrics');
     } catch (e) {
-      showPlaceholder(el, "This page will let you pick a song and a voice part (soprano/alto/tenor/bass) and see just the lyrics, in large text, for quick review. Coming in Phase 2, once connected to the Google Sheet.");
+      showPlaceholder(contentEl, "This page will let you pick a song and a voice part (soprano/alto/tenor/bass) and see just the lyrics, in large text, for quick review, once connected to the Google Sheet.");
+      return;
     }
+
+    if (!rows.length) {
+      contentEl.innerHTML = `<p class="placeholder-note">No lyrics have been added yet.</p>`;
+      return;
+    }
+
+    function partsForSong(songTitle) {
+      return rows.filter(r => r.SongTitle === songTitle).map(r => r.Part);
+    }
+
+    function renderLyrics() {
+      const song = songSelect.value;
+      const part = partSelect.value;
+      const match = rows.find(r => r.SongTitle === song && r.Part === part);
+      contentEl.innerHTML = match
+        ? `<div class="card lyrics-text">${escapeHtml(match.LyricsText).replace(/\n/g, '<br>')}</div>`
+        : `<p class="placeholder-note">No lyrics found for that combination.</p>`;
+    }
+
+    function populatePartsForCurrentSong() {
+      const parts = partsForSong(songSelect.value);
+      partSelect.innerHTML = parts.map(p => `<option value="${escapeHtml(p)}">${escapeHtml(p)}</option>`).join('');
+    }
+
+    const songTitles = [...new Set(rows.map(r => r.SongTitle))];
+    songSelect.innerHTML = songTitles.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+    populatePartsForCurrentSong();
+
+    songSelect.addEventListener('change', () => {
+      populatePartsForCurrentSong();
+      renderLyrics();
+    });
+    partSelect.addEventListener('change', renderLyrics);
+
+    pickerEl.style.display = '';
+    renderLyrics();
   })();
 </script>
 </body>
