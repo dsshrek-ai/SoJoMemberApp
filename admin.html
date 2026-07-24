@@ -24,6 +24,42 @@
   }
   table.admin-table td:last-child { white-space: nowrap; }
   table.admin-table .btn { font-size: 0.9rem; padding: 0.4rem 0.7rem; margin: 0.1rem; }
+  table.admin-table input[type="date"], table.admin-table input[type="time"] {
+    min-width: 6rem;
+    font-size: 0.95rem;
+    padding: 0.3rem;
+    box-sizing: border-box;
+  }
+  .long-text-field { display: flex; flex-direction: column; gap: 0.3rem; }
+  .expand-btn { font-size: 0.8rem !important; padding: 0.25rem 0.5rem !important; align-self: flex-start; }
+
+  #expand-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  #expand-modal .card {
+    width: 100%;
+    max-width: 600px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  #expand-textarea {
+    width: 100%;
+    min-height: 50vh;
+    font-size: 1.1rem;
+    padding: 0.75rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    box-sizing: border-box;
+    font-family: inherit;
+  }
 </style>
 </head>
 <body>
@@ -48,6 +84,16 @@
     <div id="table-container"></div>
   </div>
 </main>
+<div id="expand-modal">
+  <div class="card">
+    <h2 id="expand-title">Edit Text</h2>
+    <textarea id="expand-textarea"></textarea>
+    <p>
+      <button id="expand-save" class="btn">Use This Text</button>
+      <button id="expand-cancel" class="btn">Cancel</button>
+    </p>
+  </div>
+</div>
 <footer class="site-footer">Choir App &mdash; admin maintenance panel</footer>
 <script src="js/api.js"></script>
 <script>
@@ -65,6 +111,28 @@
     Settings: ['Key', 'Value'],
   };
   const LONG_TEXT_COLUMNS = new Set(['LyricsText', 'Message', 'Notes', 'Note', 'Value']);
+  const DATE_COLUMNS = new Set(['Date', 'LastRehearsedDate']);
+  const TIME_COLUMNS = new Set(['Time']);
+
+  // Sheet Time cells come back formatted as "7:00 PM" (see Code.gs formatCell), but
+  // <input type="time"> needs 24-hour "HH:MM". Convert both directions.
+  function to24Hour(str) {
+    const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec((str || '').trim());
+    if (!m) return '';
+    let h = parseInt(m[1], 10);
+    if (/PM/i.test(m[3]) && h !== 12) h += 12;
+    if (/AM/i.test(m[3]) && h === 12) h = 0;
+    return String(h).padStart(2, '0') + ':' + m[2];
+  }
+
+  function to12Hour(hhmm) {
+    if (!hhmm) return '';
+    const [hStr, mStr] = hhmm.split(':');
+    let h = parseInt(hStr, 10);
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return h + ':' + mStr + ' ' + ampm;
+  }
 
   const passwordScreen = document.getElementById('password-screen');
   const panel = document.getElementById('panel');
@@ -119,8 +187,17 @@
 
   function fieldInput(col, value) {
     const safeVal = escapeHtml(value ?? '');
+    if (DATE_COLUMNS.has(col)) {
+      return `<input type="date" data-col="${col}" value="${safeVal}">`;
+    }
+    if (TIME_COLUMNS.has(col)) {
+      return `<input type="time" data-col="${col}" value="${escapeHtml(to24Hour(value))}">`;
+    }
     if (LONG_TEXT_COLUMNS.has(col)) {
-      return `<textarea data-col="${col}" rows="2">${safeVal}</textarea>`;
+      return `<div class="long-text-field">
+        <textarea data-col="${col}" rows="2">${safeVal}</textarea>
+        <button type="button" class="btn expand-btn">Expand</button>
+      </div>`;
     }
     return `<input type="text" data-col="${col}" value="${safeVal}">`;
   }
@@ -129,10 +206,27 @@
     const values = {};
     columns.forEach(col => {
       const el = tr.querySelector(`[data-col="${col}"]`);
-      values[col] = el.value;
+      values[col] = TIME_COLUMNS.has(col) ? to12Hour(el.value) : el.value;
     });
     return values;
   }
+
+  let expandTarget = null;
+  function openExpandEditor(textarea) {
+    expandTarget = textarea;
+    document.getElementById('expand-textarea').value = textarea.value;
+    document.getElementById('expand-modal').style.display = 'flex';
+    document.getElementById('expand-textarea').focus();
+  }
+  function closeExpandEditor() {
+    document.getElementById('expand-modal').style.display = 'none';
+    expandTarget = null;
+  }
+  document.getElementById('expand-save').addEventListener('click', () => {
+    if (expandTarget) expandTarget.value = document.getElementById('expand-textarea').value;
+    closeExpandEditor();
+  });
+  document.getElementById('expand-cancel').addEventListener('click', closeExpandEditor);
 
   async function loadTable(sheetName) {
     tableContainer.innerHTML = 'Loading…';
@@ -179,6 +273,9 @@
 
     tableContainer.querySelectorAll('button[data-action]').forEach(button => {
       button.addEventListener('click', () => handleAction(sheetName, columns, button));
+    });
+    tableContainer.querySelectorAll('.expand-btn').forEach(button => {
+      button.addEventListener('click', () => openExpandEditor(button.previousElementSibling));
     });
   }
 
