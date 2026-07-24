@@ -56,11 +56,25 @@ function sheetToObjects(sheetName) {
     if (row.every(function (cell) { return cell === "" || cell === null; })) continue;
     var obj = {};
     for (var j = 0; j < headers.length; j++) {
-      obj[headers[j]] = row[j];
+      obj[headers[j]] = formatCell(row[j]);
     }
     rows.push(obj);
   }
   return rows;
+}
+
+// Sheets returns date/time cells as JS Date objects, which JSON.stringify turns into
+// unreadable ISO strings (and time-only cells use the 1899-12-30 epoch). Format both
+// as plain readable strings; leave numbers/text/booleans untouched.
+function formatCell(value) {
+  if (Object.prototype.toString.call(value) !== "[object Date]") {
+    return value;
+  }
+  var tz = Session.getScriptTimeZone();
+  if (value.getFullYear() === 1899) {
+    return Utilities.formatDate(value, tz, "h:mm a");
+  }
+  return Utilities.formatDate(value, tz, "yyyy-MM-dd");
 }
 
 // Combines VolunteerTasks (what's needed) with a live count from VolunteerSignups.
