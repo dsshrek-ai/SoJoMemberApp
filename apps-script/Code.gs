@@ -38,7 +38,7 @@ function doPost(e) {
     return jsonResponse(claimSlot(body));
   }
   if (body.action === "markAbsent") {
-    return jsonResponse({ ok: false, reason: "not-implemented-until-phase-4" });
+    return jsonResponse(markAbsent(body));
   }
   return jsonResponse({ ok: false, reason: "unknown-action" });
 }
@@ -116,6 +116,28 @@ function claimSlot(body) {
   } finally {
     lock.releaseLock();
   }
+}
+
+// Records an absence and, if a DirectorEmail is set in the Settings tab, emails a heads-up.
+function markAbsent(body) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Absences");
+  sheet.appendRow([body.date, body.memberName, body.note || "", new Date()]);
+
+  var directorEmail = getSetting("DirectorEmail");
+  if (directorEmail) {
+    MailApp.sendEmail({
+      to: directorEmail,
+      subject: "Absence reported: " + body.memberName,
+      body: body.memberName + " reported they can't make it on " + body.date +
+        (body.note ? "\n\nNote: " + body.note : ""),
+    });
+  }
+  return { ok: true };
+}
+
+function getSetting(key) {
+  var match = sheetToObjects("Settings").filter(function (s) { return s.Key === key; })[0];
+  return match ? match.Value : null;
 }
 
 function sameDate(a, b) {
