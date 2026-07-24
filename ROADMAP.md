@@ -56,12 +56,15 @@ in `requireAdmin`/`isAdmin`):
   `postAction("claimSlot", ...)`, prompts for a name, disables/labels full slots, refreshes counts.
 - **Phase 4 (done)** — Absence notifications: `absent.html` form (name/date/note) posts
   `markAbsent`; `Code.gs` appends to `Absences` and emails `DirectorEmail` if set.
-- **Phase 5** — Polish: accessibility/large-text audit, mobile pass across all pages, and a short
-  director-facing doc for editing the Sheet/Settings without touching code.
+- **Phase 5 (done)** — Polish: skip-to-content link + `scope="col"` on admin table headers,
+  disabled-button contrast fix, mobile nav changed from multi-row wrap to a compact horizontal
+  scroll strip (was ~245px tall on a 375px-wide screen, now ~46px), `DIRECTOR-GUIDE.md` added
+  for non-technical content updates via the admin panel.
 - **Phase 6 (done)** — Admin/maintenance panel: password-gated `admin.html` (not in the public
   nav — bookmark it directly) with a table picker and a generic add/edit/delete editor covering
   all 11 Sheet tabs. Password lives in `Settings.AdminPassword` and is checked server-side in
   `Code.gs`, not just client-side.
 
-Each phase is meant to be its own session — this file plus `SETUP.md` should be enough context
-to pick up work without replaying prior conversations.
+All six phases are done. Future work isn't pre-planned — pick up wherever the user wants next;
+this file plus `SETUP.md` and `DIRECTOR-GUIDE.md` should be enough context to do that without
+replaying prior conversations.

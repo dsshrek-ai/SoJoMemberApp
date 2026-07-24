@@ -15,6 +15,21 @@
   box-sizing: border-box;
 }
 
+.skip-link {
+  position: absolute;
+  left: -999px;
+  top: 0;
+  background: var(--color-primary-dark);
+  color: #fff;
+  padding: 0.75rem 1rem;
+  z-index: 100;
+  border-radius: 0 0 var(--radius) 0;
+}
+
+.skip-link:focus {
+  left: 0;
+}
+
 html {
   font-size: 20px;
 }
@@ -115,7 +130,7 @@ h2 {
 }
 
 .btn:disabled {
-  background: #a89a8a;
+  background: #6f6459;
   cursor: not-allowed;
 }
 
@@ -179,6 +194,13 @@ a {
 @media (max-width: 480px) {
   html {
     font-size: 18px;
+  }
+  nav.site-nav {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 0.25rem;
   }
   nav.site-nav a {
     font-size: 0.95rem;

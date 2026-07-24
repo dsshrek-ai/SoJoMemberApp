@@ -27,10 +27,11 @@
 </style>
 </head>
 <body>
+<a href="#main-content" class="skip-link">Skip to main content</a>
 <header class="site-header">
   <h1>South Jordan Choral Arts Community Choir &mdash; Admin</h1>
 </header>
-<main>
+<main id="main-content">
   <div id="password-screen" class="card">
     <h2>Enter Admin Password</h2>
     <p id="auth-error" class="placeholder-note" style="display:none;">Incorrect password.</p>
@@ -151,7 +152,7 @@
 
   function renderTable(sheetName, rows) {
     const columns = TABLES[sheetName];
-    const headHtml = columns.map(c => `<th>${c}</th>`).join('') + '<th>Actions</th>';
+    const headHtml = columns.map(c => `<th scope="col">${c}</th>`).join('') + '<th scope="col">Actions</th>';
     const bodyHtml = rows.map(r => `
       <tr data-row="${r._row}">
         ${columns.map(c => `<td>${fieldInput(c, r[c])}</td>`).join('')}
