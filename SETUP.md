@@ -57,3 +57,21 @@ These steps use your own Google and GitHub accounts — nobody else needs to do 
   no redeploy needed.
 - Volunteer tasks: add a row to `VolunteerTasks` for each week/task with how many slots are
   needed; the app fills in `VolunteerSignups` automatically as members claim slots (Phase 3).
+
+## Admin/maintenance panel (`admin.html`)
+
+Instead of opening the Google Sheet directly, you (or a section leader) can add/edit/delete rows
+in any tab from `admin.html` — it's not linked from the public nav, so bookmark it directly:
+
+`https://<username>.github.io/<repo-name>/admin.html`
+
+Setup:
+1. In the `Settings` tab, set a row with **Key** `AdminPassword` and a **Value** of your choice —
+   this is the one password anyone doing maintenance will enter (not a per-person login).
+2. Visit `admin.html`, enter that password, and pick a table from the dropdown to add, edit, or
+   delete rows directly — no Sheets required.
+3. The password is checked by the Apps Script itself, not just the page, so it's safe even though
+   the site has no other login. Change `AdminPassword` any time to revoke access; anyone with an
+   old password will be rejected on their next action.
+4. "Lock" on the admin page clears the password from that browser tab — useful on a shared
+   computer. It's also cleared automatically when the browser tab closes.

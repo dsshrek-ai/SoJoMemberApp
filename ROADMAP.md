@@ -29,28 +29,39 @@ Starter CSVs for each tab are in `sheet-templates/`.
 
 ## Apps Script API
 
+Public (no password, used by member-facing pages):
 - `GET ?action=schedule|songs|lyrics|announcements|volunteerStatus|recognition|folders|sponsors|settings`
-- `POST {action: "claimSlot", date, taskName, volunteerName}` — implemented, guarded by `LockService`
-- `POST {action: "markAbsent", date, memberName, note}` — stubbed, returns not-implemented until Phase 4
+- `POST {action: "claimSlot", date, taskName, volunteerName}` — guarded by `LockService`
+- `POST {action: "markAbsent", date, memberName, note}` — emails `DirectorEmail` (from Settings) if set
+
+Admin (all POST, all require `password` matching `Settings.AdminPassword`, checked server-side
+in `requireAdmin`/`isAdmin`):
+- `adminAuth` → `{password}` → `{ok}`
+- `adminList` → `{password, sheet}` → `{ok, rows}` (rows include a `_row` sheet-row number)
+- `adminAdd` → `{password, sheet, row: {...}}`
+- `adminUpdate` → `{password, sheet, row: <number>, values: {...}}`
+- `adminDelete` → `{password, sheet, row: <number>}`
+
+`sheet` must be one of `ADMIN_SHEETS` in `Code.gs` (all 11 tabs).
 
 ## Phases
 
 - **Phase 0 (done)** — Repo scaffold, shared CSS/JS, Sheet schema + CSV templates, Apps Script
   with all `GET` read actions and `claimSlot` wired, nav shell across all pages, deploy instructions.
-- **Phase 1** — Wire up the remaining read-only pages against a real deployed Sheet + Apps Script
-  URL: Schedule, Announcements, Songs, Sponsors/Donation, Recognition, Music Folders, Join Us.
-  (The page code already calls `fetchData(...)` — this phase is mostly testing against real data
-  and refining the CSS/layout once real content is in.)
-- **Phase 2** — Lyrics-by-part quick view: add song + part `<select>` dropdowns to `lyrics.html`
-  that filter the already-fetched `Lyrics` rows and render large-text lyrics only.
-- **Phase 3** — Wire the volunteer signup button in `volunteer.html` to `postAction("claimSlot", ...)`
-  (currently disabled with "coming in Phase 3"), prompt for a name, refresh slot counts after signup,
-  and disable/hide full slots.
-- **Phase 4** — Absence notifications: a small form (date + name + note) on a new `absent.html` page
-  posting `markAbsent`; implement the real logic in `Code.gs` (currently stubbed); optionally email the
-  director via `MailApp.sendEmail` when one comes in.
+- **Phase 1 (done)** — Read-only pages verified against real Sheet data: Schedule, Announcements,
+  Songs, Volunteer status, Home welcome message.
+- **Phase 2 (done)** — Lyrics-by-part quick view: song + part `<select>` dropdowns on `lyrics.html`
+  filter the fetched `Lyrics` rows and render large-text lyrics only.
+- **Phase 3 (done)** — Volunteer signup wired end-to-end: `volunteer.html` claims a slot via
+  `postAction("claimSlot", ...)`, prompts for a name, disables/labels full slots, refreshes counts.
+- **Phase 4 (done)** — Absence notifications: `absent.html` form (name/date/note) posts
+  `markAbsent`; `Code.gs` appends to `Absences` and emails `DirectorEmail` if set.
 - **Phase 5** — Polish: accessibility/large-text audit, mobile pass across all pages, and a short
   director-facing doc for editing the Sheet/Settings without touching code.
+- **Phase 6 (done)** — Admin/maintenance panel: password-gated `admin.html` (not in the public
+  nav — bookmark it directly) with a table picker and a generic add/edit/delete editor covering
+  all 11 Sheet tabs. Password lives in `Settings.AdminPassword` and is checked server-side in
+  `Code.gs`, not just client-side.
 
 Each phase is meant to be its own session — this file plus `SETUP.md` should be enough context
 to pick up work without replaying prior conversations.

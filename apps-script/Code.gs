@@ -12,6 +12,13 @@ var READ_ACTIONS = {
   settings: "Settings",
 };
 
+// Sheets the admin panel is allowed to touch. Guards against an arbitrary/typo'd
+// sheet name being passed in from the client.
+var ADMIN_SHEETS = [
+  "Schedule", "Songs", "Lyrics", "Announcements", "VolunteerTasks",
+  "VolunteerSignups", "Absences", "Recognition", "MusicFolders", "Sponsors", "Settings",
+];
+
 function doGet(e) {
   var action = e.parameter.action;
 
@@ -39,6 +46,23 @@ function doPost(e) {
   }
   if (body.action === "markAbsent") {
     return jsonResponse(markAbsent(body));
+  }
+  if (body.action === "adminAuth") {
+    return jsonResponse({ ok: isAdmin(body.password) });
+  }
+  if (body.action === "adminList") {
+    return jsonResponse(requireAdmin(body, function () {
+      return { ok: true, rows: sheetToObjectsWithRow(body.sheet) };
+    }));
+  }
+  if (body.action === "adminAdd") {
+    return jsonResponse(requireAdmin(body, function () { return adminAdd(body); }));
+  }
+  if (body.action === "adminUpdate") {
+    return jsonResponse(requireAdmin(body, function () { return adminUpdate(body); }));
+  }
+  if (body.action === "adminDelete") {
+    return jsonResponse(requireAdmin(body, function () { return adminDelete(body); }));
   }
   return jsonResponse({ ok: false, reason: "unknown-action" });
 }
@@ -138,6 +162,101 @@ function markAbsent(body) {
 function getSetting(key) {
   var match = sheetToObjects("Settings").filter(function (s) { return s.Key === key; })[0];
   return match ? match.Value : null;
+}
+
+function isAdmin(password) {
+  var expected = getSetting("AdminPassword");
+  return !!expected && password === expected;
+}
+
+// Runs `fn` only if body.password matches Settings.AdminPassword and body.sheet is a
+// known admin-editable tab; otherwise returns a rejection the client can show.
+function requireAdmin(body, fn) {
+  if (!isAdmin(body.password)) {
+    return { ok: false, reason: "unauthorized" };
+  }
+  if (body.sheet && ADMIN_SHEETS.indexOf(body.sheet) === -1) {
+    return { ok: false, reason: "unknown-sheet" };
+  }
+  return fn();
+}
+
+// Like sheetToObjects, but includes each row's 1-indexed sheet row number as `_row`,
+// so the admin UI can target that exact row for update/delete.
+function sheetToObjectsWithRow(sheetName) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  if (!sheet) return [];
+  var values = sheet.getDataRange().getValues();
+  if (values.length < 2) return [];
+  var headers = values[0];
+  var rows = [];
+  for (var i = 1; i < values.length; i++) {
+    var row = values[i];
+    if (row.every(function (cell) { return cell === "" || cell === null; })) continue;
+    var obj = { _row: i + 1 };
+    for (var j = 0; j < headers.length; j++) {
+      obj[headers[j]] = formatCell(row[j]);
+    }
+    rows.push(obj);
+  }
+  return rows;
+}
+
+// Appends a new row, pulling values out of body.row in the sheet's own header order
+// (so the client doesn't need to know column order, just column names).
+function adminAdd(body) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(body.sheet);
+    if (!sheet) return { ok: false, reason: "unknown-sheet" };
+    var headers = sheet.getDataRange().getValues()[0];
+    var values = headers.map(function (h) { return cellValue(body.row, h); });
+    sheet.appendRow(values);
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Overwrites an existing row (body.row = 1-indexed sheet row number) with body.values.
+function adminUpdate(body) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(body.sheet);
+    if (!sheet) return { ok: false, reason: "unknown-sheet" };
+    var headers = sheet.getDataRange().getValues()[0];
+    if (body.row < 2 || body.row > sheet.getLastRow()) {
+      return { ok: false, reason: "invalid-row" };
+    }
+    var values = headers.map(function (h) { return cellValue(body.values, h); });
+    sheet.getRange(body.row, 1, 1, headers.length).setValues([values]);
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function cellValue(source, key) {
+  if (!source || source[key] === undefined || source[key] === null) return "";
+  return source[key];
+}
+
+function adminDelete(body) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(body.sheet);
+    if (!sheet) return { ok: false, reason: "unknown-sheet" };
+    if (body.row < 2 || body.row > sheet.getLastRow()) {
+      return { ok: false, reason: "invalid-row" };
+    }
+    sheet.deleteRow(body.row);
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function sameDate(a, b) {

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin | Choir App</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .admin-table-wrap { overflow-x: auto; margin-bottom: 1.5rem; }
+  table.admin-table { border-collapse: collapse; width: 100%; }
+  table.admin-table th, table.admin-table td {
+    border: 1px solid var(--color-border);
+    padding: 0.4rem;
+    vertical-align: top;
+  }
+  table.admin-table th { background: var(--color-pinned-bg); text-align: left; }
+  table.admin-table input[type="text"], table.admin-table textarea {
+    width: 100%;
+    max-width: none;
+    min-width: 8rem;
+    font-size: 0.95rem;
+    padding: 0.3rem;
+    box-sizing: border-box;
+  }
+  table.admin-table td:last-child { white-space: nowrap; }
+  table.admin-table .btn { font-size: 0.9rem; padding: 0.4rem 0.7rem; margin: 0.1rem; }
+</style>
+</head>
+<body>
+<header class="site-header">
+  <h1>South Jordan Choral Arts Community Choir &mdash; Admin</h1>
+</header>
+<main>
+  <div id="password-screen" class="card">
+    <h2>Enter Admin Password</h2>
+    <p id="auth-error" class="placeholder-note" style="display:none;">Incorrect password.</p>
+    <label for="password-input">Password</label>
+    <input type="password" id="password-input">
+    <p><button id="unlock-btn" class="btn">Unlock</button></p>
+  </div>
+
+  <div id="panel" style="display:none;">
+    <p><button id="lock-btn" class="btn">Lock</button></p>
+    <label for="table-select">Table</label>
+    <select id="table-select"></select>
+    <div id="status" class="placeholder-note" style="display:none;"></div>
+    <div id="table-container"></div>
+  </div>
+</main>
+<footer class="site-footer">Choir App &mdash; admin maintenance panel</footer>
+<script src="js/api.js"></script>
+<script>
+  const TABLES = {
+    Schedule: ['Date', 'Time', 'Type', 'Title', 'Location', 'ParkingNotes', 'EntranceNotes', 'Notes'],
+    Songs: ['Title', 'RehearsalTrackURL', 'YouTubeURL', 'LastRehearsedDate', 'Status'],
+    Lyrics: ['SongTitle', 'Part', 'LyricsText'],
+    Announcements: ['Date', 'Author', 'Message', 'Pinned'],
+    VolunteerTasks: ['Date', 'TaskName', 'SlotsNeeded'],
+    VolunteerSignups: ['Date', 'TaskName', 'VolunteerName', 'Timestamp'],
+    Absences: ['Date', 'MemberName', 'Note', 'Timestamp'],
+    Recognition: ['Date', 'MemberName', 'Message'],
+    MusicFolders: ['MemberName', 'FolderAssignment'],
+    Sponsors: ['SponsorName', 'LogoURL', 'Message', 'Tier'],
+    Settings: ['Key', 'Value'],
+  };
+  const LONG_TEXT_COLUMNS = new Set(['LyricsText', 'Message', 'Notes', 'Note', 'Value']);
+
+  const passwordScreen = document.getElementById('password-screen');
+  const panel = document.getElementById('panel');
+  const authError = document.getElementById('auth-error');
+  const tableSelect = document.getElementById('table-select');
+  const tableContainer = document.getElementById('table-container');
+  const statusEl = document.getElementById('status');
+
+  function showStatus(message) {
+    statusEl.textContent = message;
+    statusEl.style.display = '';
+  }
+
+  function getPassword() {
+    return sessionStorage.getItem('adminPassword') || '';
+  }
+
+  async function tryUnlock(password) {
+    try {
+      const result = await postAction('adminAuth', { password });
+      return !!result.ok;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function showPanel() {
+    passwordScreen.style.display = 'none';
+    panel.style.display = '';
+    if (!tableSelect.options.length) {
+      tableSelect.innerHTML = Object.keys(TABLES).map(t => `<option value="${t}">${t}</option>`).join('');
+      tableSelect.addEventListener('change', () => loadTable(tableSelect.value));
+      loadTable(tableSelect.value);
+    }
+  }
+
+  document.getElementById('unlock-btn').addEventListener('click', async () => {
+    const password = document.getElementById('password-input').value;
+    authError.style.display = 'none';
+    if (await tryUnlock(password)) {
+      sessionStorage.setItem('adminPassword', password);
+      showPanel();
+    } else {
+      authError.style.display = '';
+    }
+  });
+
+  document.getElementById('lock-btn').addEventListener('click', () => {
+    sessionStorage.removeItem('adminPassword');
+    location.reload();
+  });
+
+  function fieldInput(col, value) {
+    const safeVal = escapeHtml(value ?? '');
+    if (LONG_TEXT_COLUMNS.has(col)) {
+      return `<textarea data-col="${col}" rows="2">${safeVal}</textarea>`;
+    }
+    return `<input type="text" data-col="${col}" value="${safeVal}">`;
+  }
+
+  function readRow(tr, columns) {
+    const values = {};
+    columns.forEach(col => {
+      const el = tr.querySelector(`[data-col="${col}"]`);
+      values[col] = el.value;
+    });
+    return values;
+  }
+
+  async function loadTable(sheetName) {
+    tableContainer.innerHTML = 'Loading…';
+    let result;
+    try {
+      result = await postAction('adminList', { password: getPassword(), sheet: sheetName });
+    } catch (e) {
+      tableContainer.innerHTML = `<p class="placeholder-note">Couldn't load ${escapeHtml(sheetName)}. Please try again.</p>`;
+      return;
+    }
+    if (!result.ok) {
+      tableContainer.innerHTML = `<p class="placeholder-note">Not authorized. Try locking and re-entering the password.</p>`;
+      return;
+    }
+    renderTable(sheetName, result.rows);
+  }
+
+  function renderTable(sheetName, rows) {
+    const columns = TABLES[sheetName];
+    const headHtml = columns.map(c => `<th>${c}</th>`).join('') + '<th>Actions</th>';
+    const bodyHtml = rows.map(r => `
+      <tr data-row="${r._row}">
+        ${columns.map(c => `<td>${fieldInput(c, r[c])}</td>`).join('')}
+        <td>
+          <button class="btn" data-action="save">Save</button>
+          <button class="btn" data-action="delete">Delete</button>
+        </td>
+      </tr>
+    `).join('');
+    const addRowHtml = `
+      <tr id="add-row">
+        ${columns.map(c => `<td>${fieldInput(c, '')}</td>`).join('')}
+        <td><button class="btn" data-action="add">Add</button></td>
+      </tr>
+    `;
+    tableContainer.innerHTML = `
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr>${headHtml}</tr></thead>
+          <tbody>${bodyHtml}${addRowHtml}</tbody>
+        </table>
+      </div>
+    `;
+
+    tableContainer.querySelectorAll('button[data-action]').forEach(button => {
+      button.addEventListener('click', () => handleAction(sheetName, columns, button));
+    });
+  }
+
+  async function handleAction(sheetName, columns, button) {
+    const action = button.dataset.action;
+    const tr = button.closest('tr');
+    const password = getPassword();
+
+    if (action === 'add') {
+      const row = readRow(tr, columns);
+      button.disabled = true;
+      const result = await postAction('adminAdd', { password, sheet: sheetName, row }).catch(() => ({ ok: false }));
+      if (result.ok) {
+        loadTable(sheetName);
+      } else {
+        showStatus('Could not add that row. Please try again.');
+        button.disabled = false;
+      }
+      return;
+    }
+
+    const rowNumber = Number(tr.dataset.row);
+
+    if (action === 'save') {
+      const values = readRow(tr, columns);
+      button.disabled = true;
+      const result = await postAction('adminUpdate', { password, sheet: sheetName, row: rowNumber, values }).catch(() => ({ ok: false }));
+      if (result.ok) {
+        showStatus('Saved.');
+      } else {
+        showStatus('Could not save that row. Please try again.');
+      }
+      button.disabled = false;
+      return;
+    }
+
+    if (action === 'delete') {
+      if (!confirm('Delete this row? This cannot be undone.')) return;
+      button.disabled = true;
+      const result = await postAction('adminDelete', { password, sheet: sheetName, row: rowNumber }).catch(() => ({ ok: false }));
+      if (result.ok) {
+        loadTable(sheetName);
+      } else {
+        showStatus('Could not delete that row. Please try again.');
+        button.disabled = false;
+      }
+    }
+  }
+
+  (async () => {
+    const savedPassword = getPassword();
+    if (savedPassword && await tryUnlock(savedPassword)) {
+      showPanel();
+    }
+  })();
+</script>
+</body>
+</html>
