@@ -136,7 +136,10 @@
 
   // Strips a typed phone number down to digits (keeping a leading +) for sms: links.
   function toSmsNumber(raw) {
-    return (raw || '').replace(/[^\d+]/g, '');
+    // Google Sheets auto-detects all-digit text (e.g. a phone number typed with no dashes)
+    // as a Number, not a string -- so `raw` may already be a number here, and calling
+    // .replace() on it directly would throw. Coerce to string first.
+    return String(raw ?? '').replace(/[^\d+]/g, '');
   }
 
   const passwordScreen = document.getElementById('password-screen');
