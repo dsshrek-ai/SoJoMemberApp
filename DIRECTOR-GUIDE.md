@@ -44,9 +44,10 @@ You generally shouldn't need to edit `VolunteerSignups` yourself, except to fix 
 remove a duplicate.
 
 **Text everyone signed up for a task**
-→ Table: `VolunteerTasks`. Each row has a **Text All** button. Click it and your phone's texting
-app opens with every phone number for that task's volunteers already filled in — just write your
-message and send. (Works best on a phone; on a computer without texting set up, nothing happens.)
+→ Table: `VolunteerTasks`. Each row has a **Copy Numbers** button showing how many phone numbers
+are on file for that task. Tap it to copy the full list to your clipboard, then paste it into
+the "To:" field of a new message in your phone's texting app. (Phones/carriers don't reliably
+support pre-filling multiple recipients from a link, so copy-and-paste is the dependable way.)
 
 **Recognize a member (birthday, milestone, shout-out)**
 → Table: `Recognition`. Add a Date, the MemberName, and a short Message.

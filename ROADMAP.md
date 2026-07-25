@@ -76,25 +76,34 @@ replaying prior conversations.
 
 ## Post-roadmap additions
 
-- **Phone numbers + "Text All"**: `volunteer.html` now collects a phone number (inline form,
-  not `prompt()`) alongside the name at signup, stored in `VolunteerSignups.PhoneNumber`.
-  `admin.html`'s `VolunteerTasks` rows each get a **Text All** link that opens
-  `sms:num1,num2,...` for everyone signed up for that task. Deliberately admin-only
-  (password-gated) — phone numbers are never included in the public `volunteerStatus` response,
-  to avoid the same kind of leak fixed in the AdminPassword/DirectorEmail incident below.
-  - Two implementation issues along the way, both about the "Text All" data fetch:
-    1. `window.location.href = 'sms:...'` set inside an async click handler (after an `await`)
-       silently failed on iOS Safari — it only trusts sms:/tel: navigation as the *direct*
-       result of a click. Fixed by building a real `<a href="sms:...">` at render time instead.
+- **Phone numbers + "Copy Numbers"**: `volunteer.html` now collects a phone number (inline
+  form, not `prompt()`) alongside the name at signup, stored in `VolunteerSignups.PhoneNumber`.
+  `admin.html`'s `VolunteerTasks` rows each get a **Copy Numbers** button that copies every
+  distinct phone number signed up for that task to the clipboard, for pasting into a texting
+  app. Deliberately admin-only (password-gated) — phone numbers are never included in the
+  public `volunteerStatus` response, to avoid the same kind of leak fixed in the
+  AdminPassword/DirectorEmail incident below.
+  - This went through a few iterations, each worth remembering if something similar comes up:
+    1. Originally an `sms:num1,num2,...` link. `window.location.href = 'sms:...'` set inside an
+       async click handler (after an `await`) silently failed on iOS Safari — it only trusts
+       sms:/tel: navigation as the *direct* result of a click. Fixed by building a real
+       `<a href="sms:...">` at render time instead.
     2. Fetching VolunteerTasks and VolunteerSignups as two separate admin-gated requests
        (tried sequentially, then in parallel via `Promise.all`) was unreliably slow — one
        report of a 5-minute stall, though a plain wrong-password round trip completed in a
-       few seconds. The public `volunteerStatus` endpoint reads the same two tabs together in
-       a *single* execution and has never had this problem. Fixed by adding a dedicated
-       `adminVolunteerTasks` action (`getVolunteerTasksWithPhones()` in `Code.gs`) that does
-       the same — one request, both tabs read server-side — instead of two client-driven
-       admin calls. If a similar stall ever shows up elsewhere, prefer this pattern (one
-       request, server-side join) over multiple concurrent/sequential admin-gated calls.
+       few seconds. Fixed with a dedicated `adminVolunteerTasks` action
+       (`getVolunteerTasksWithPhones()` in `Code.gs`) that reads both tabs in one execution —
+       matching how the already-reliable public `volunteerStatus` endpoint does it. If a
+       similar stall ever shows up elsewhere, prefer this pattern (one request, server-side
+       join) over multiple concurrent/sequential admin-gated calls.
+    3. Still hung after that fix — turned out to be a real bug, not slowness: Google Sheets
+       auto-detects all-digit phone numbers as a Number cell, not text, and the number-cleanup
+       code called `.replace()` directly on the raw value, throwing on an actual number and
+       silently breaking mid-render. Fixed by coercing with `String(raw ?? '')` first.
+    4. Even once fixed, the `sms:` link itself turned out to only reliably open Messages to the
+       *first* recipient — iOS/Android inconsistently honor multiple comma-separated recipients
+       in an `sms:` URI, and there's no reliable web-side fix for that. Removed the `sms:` link
+       entirely and kept only **Copy Numbers**, which sidesteps the platform limitation.
 - **Security fix (public settings leak)**: the public `settings` GET action used to return the
   *entire* `Settings` tab, including `AdminPassword` and `DirectorEmail`, to any visitor. Fixed
   with a `PUBLIC_SETTINGS_KEYS` allowlist in `Code.gs` — only intentionally-public keys

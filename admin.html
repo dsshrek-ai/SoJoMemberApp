@@ -261,18 +261,15 @@
     renderTable(sheetName, result.rows);
   }
 
-  function textAllLink(phoneNumbers) {
+  function copyNumbersButton(phoneNumbers) {
     const numbers = [...new Set((phoneNumbers || []).map(toSmsNumber).filter(n => n))];
     if (!numbers.length) {
       return `<span class="btn" style="opacity:0.5;" title="No phone numbers on file for this task">No Numbers</span>`;
     }
-    // iOS/Android inconsistently honor multiple comma-separated recipients in an sms: link
-    // (sometimes only the first one opens), so "Copy Numbers" is a reliable fallback to
-    // paste into Messages manually.
-    return `
-      <a class="btn" href="sms:${numbers.join(',')}">Text All (${numbers.length})</a>
-      <button type="button" class="btn copy-numbers-btn" data-numbers="${numbers.join(', ')}">Copy Numbers</button>
-    `;
+    // No sms: link here: iOS/Android inconsistently honor multiple comma-separated
+    // recipients (sometimes only the first one opens), so copy-and-paste into Messages
+    // is the reliable option.
+    return `<button type="button" class="btn copy-numbers-btn" data-numbers="${numbers.join(', ')}">Copy Numbers (${numbers.length})</button>`;
   }
 
   function renderTable(sheetName, rows) {
@@ -284,7 +281,7 @@
         <td>
           <button class="btn" data-action="save">Save</button>
           <button class="btn" data-action="delete">Delete</button>
-          ${sheetName === 'VolunteerTasks' ? textAllLink(r.PhoneNumbers) : ''}
+          ${sheetName === 'VolunteerTasks' ? copyNumbersButton(r.PhoneNumbers) : ''}
         </td>
       </tr>
     `).join('');
