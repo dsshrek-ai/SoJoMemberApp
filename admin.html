@@ -251,10 +251,33 @@
       tableContainer.innerHTML = `<p class="placeholder-note">Not authorized. Try locking and re-entering the password.</p>`;
       return;
     }
-    renderTable(sheetName, result.rows);
+
+    // For VolunteerTasks, pre-fetch signups so "Text All" can be a plain <a href="sms:...">
+    // built at render time. iOS Safari (and others) only trust sms:/tel: navigation when
+    // it's the direct result of a click, not something set via JS after an `await` — so the
+    // href must already be correct before the user taps it, not computed in a click handler.
+    let signupRows = [];
+    if (sheetName === 'VolunteerTasks') {
+      const signupsResult = await postAction('adminList', { password: getPassword(), sheet: 'VolunteerSignups' }).catch(() => ({ ok: false }));
+      if (signupsResult.ok) signupRows = signupsResult.rows;
+    }
+
+    renderTable(sheetName, result.rows, signupRows);
   }
 
-  function renderTable(sheetName, rows) {
+  function textAllLink(date, task, signupRows) {
+    const numbers = [...new Set(
+      signupRows
+        .filter(s => sameDateStr(s.Date, date) && s.TaskName === task)
+        .map(s => toSmsNumber(s.PhoneNumber))
+        .filter(n => n)
+    )];
+    return numbers.length
+      ? `<a class="btn" href="sms:${numbers.join(',')}">Text All (${numbers.length})</a>`
+      : `<span class="btn" style="opacity:0.5;" title="No phone numbers on file for this task">No Numbers</span>`;
+  }
+
+  function renderTable(sheetName, rows, signupRows) {
     const columns = TABLES[sheetName];
     const headHtml = columns.map(c => `<th scope="col">${c}</th>`).join('') + '<th scope="col">Actions</th>';
     const bodyHtml = rows.map(r => `
@@ -263,7 +286,7 @@
         <td>
           <button class="btn" data-action="save">Save</button>
           <button class="btn" data-action="delete">Delete</button>
-          ${sheetName === 'VolunteerTasks' ? `<button class="btn" data-action="textAll" data-tt-date="${escapeHtml(r.Date)}" data-tt-task="${escapeHtml(r.TaskName)}">Text All</button>` : ''}
+          ${sheetName === 'VolunteerTasks' ? textAllLink(r.Date, r.TaskName, signupRows) : ''}
         </td>
       </tr>
     `).join('');
@@ -305,30 +328,6 @@
         showStatus('Could not add that row. Please try again.');
         button.disabled = false;
       }
-      return;
-    }
-
-    if (action === 'textAll') {
-      const date = button.dataset.ttDate;
-      const task = button.dataset.ttTask;
-      button.disabled = true;
-      const result = await postAction('adminList', { password, sheet: 'VolunteerSignups' }).catch(() => ({ ok: false }));
-      button.disabled = false;
-      if (!result.ok) {
-        showStatus('Could not load signups for texting. Please try again.');
-        return;
-      }
-      const numbers = [...new Set(
-        result.rows
-          .filter(s => sameDateStr(s.Date, date) && s.TaskName === task)
-          .map(s => toSmsNumber(s.PhoneNumber))
-          .filter(n => n)
-      )];
-      if (!numbers.length) {
-        showStatus(`No phone numbers found for "${task}" on ${date}.`);
-        return;
-      }
-      window.location.href = 'sms:' + numbers.join(',');
       return;
     }
 
