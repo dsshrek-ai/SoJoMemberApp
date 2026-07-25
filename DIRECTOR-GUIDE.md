@@ -56,21 +56,24 @@ support pre-filling multiple recipients from a link, so copy-and-paste is the de
 → Table: `Sponsors`. SponsorName, an optional link (LogoURL), a thank-you Message, and a Tier
 if you use sponsor levels (e.g. Gold/Silver).
 
-**Update the welcome message, donation link, or registration/audition links**
+**Update the welcome message, donation link, registration link, or instructions**
 → Table: `Settings`. This is a simple list of Key/Value pairs that control text and links across
 the site:
 - `WelcomeMessage` — shown on the home page
 - `DonationURL` — the "Support the Choir" button link
-- `NewMemberFormURL` — the registration link on the Join Us page
+- `NewMemberFormURL` — the registration link members copy from the Join Us page to invite others
 - `AuditionInfoText` / `AuditionFormURL` — text and link on the Join Us page
+- `InstructionsText` — shown on the Instructions page (last item in the site menu)
 - `DirectorEmail` — if set, you'll get an email whenever someone reports an absence
 - `AdminPassword` — the password for this admin panel (see below)
 
 To change any of these, find that row in the `Settings` table and edit the Value box, then
 **Save**. Don't change the Key names — the site looks for them by that exact spelling.
 
-**Assign a music folder number to a member**
-→ Table: `MusicFolders`. MemberName and their FolderAssignment number.
+**Invite someone to join the choir**
+→ There's nothing to set up here beyond `NewMemberFormURL` above — on the Join Us page, any
+member can tap **Copy Link** to copy that registration link to their clipboard and paste it into
+a text or email to invite someone.
 
 ## Formatting your text
 

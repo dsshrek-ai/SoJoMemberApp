@@ -21,16 +21,17 @@ by the app itself, via the Apps Script API.
 | `VolunteerSignups` | Date, TaskName, VolunteerName, PhoneNumber, Timestamp |
 | `Absences` | Date, MemberName, Note, Timestamp |
 | `Recognition` | Date, MemberName, Message |
-| `MusicFolders` | MemberName, FolderAssignment |
 | `Sponsors` | SponsorName, LogoURL, Message, Tier |
 | `Settings` | Key, Value |
 
-Starter CSVs for each tab are in `sheet-templates/`.
+Starter CSVs for each tab are in `sheet-templates/`. `MusicFolders` was an app feature in an
+earlier phase — it's been unwired entirely (no page, no admin table, no API action) per the
+user's request; the tab may still exist in an existing Sheet, the app just no longer touches it.
 
 ## Apps Script API
 
 Public (no password, used by member-facing pages):
-- `GET ?action=schedule|songs|lyrics|announcements|volunteerStatus|recognition|folders|sponsors|settings`
+- `GET ?action=schedule|songs|lyrics|announcements|volunteerStatus|recognition|sponsors|settings`
 - `POST {action: "claimSlot", date, taskName, volunteerName, phoneNumber}` — guarded by `LockService`.
   Writes are header-driven (`headers.map(...)`), not positional, so adding/reordering
   VolunteerSignups columns in the Sheet won't break it as long as header names match.
@@ -47,7 +48,7 @@ in `requireAdmin`/`isAdmin`):
 - `adminUpdate` → `{password, sheet, row: <number>, values: {...}}`
 - `adminDelete` → `{password, sheet, row: <number>}`
 
-`sheet` must be one of `ADMIN_SHEETS` in `Code.gs` (all 11 tabs).
+`sheet` must be one of `ADMIN_SHEETS` in `Code.gs` (all 10 tabs — `MusicFolders` was removed).
 
 ## Phases
 
@@ -119,3 +120,20 @@ replaying prior conversations.
   Settings values — not for `LyricsText` (which keeps its own simpler line-break-only
   rendering in `lyrics.html`) or short fields like Title/Date/Location. Documented for the
   director in `DIRECTOR-GUIDE.md`.
+- **Instructions page**: new `instructions.html`, last item in the nav on every page, renders
+  `Settings.InstructionsText` through `formatText` — same pattern as the Home welcome message,
+  just a dedicated page. Added `InstructionsText` to `PUBLIC_SETTINGS_KEYS` in `Code.gs` since
+  it's read by the public `settings` action. Ships with default placeholder content (a bulleted
+  tour of the site's pages) in `sheet-templates/Settings.csv`; fully editable via the admin
+  panel afterward.
+- **Music Folders unwired**: removed entirely as an app feature per the user's request — deleted
+  `folders.html`, the nav link on every page, `sheet-templates/MusicFolders.csv`, the `folders`
+  public read action, and the `MusicFolders` entry in both `ADMIN_SHEETS` (`Code.gs`) and the
+  admin panel's `TABLES` config. The `MusicFolders` tab itself is untouched in the Sheet — the
+  app just no longer reads or exposes it anywhere.
+- **Join Us reframed as an invite tool**: since browsing the app already implies membership (no
+  login required), the "New Member Registration" card became **Invite a New Member** — a
+  **Copy Link** button (using the shared `copyToClipboard` helper in `js/api.js`, also used by
+  admin.html's Copy Numbers) that copies `NewMemberFormURL` to the clipboard, with instructions
+  to paste it into a text or email. Falls back to showing the raw link as text if clipboard
+  access fails, same pattern as Copy Numbers.

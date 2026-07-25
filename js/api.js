@@ -82,3 +82,16 @@ function inlineFormat(text) {
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>');
 }
+
+// Copies `text` to the clipboard and briefly changes `button`'s label to confirm it. If the
+// clipboard API is unavailable/blocked, calls `onFallback(text)` so the value isn't lost.
+async function copyToClipboard(text, button, onFallback) {
+  const original = button.textContent;
+  try {
+    await navigator.clipboard.writeText(text);
+    button.textContent = 'Copied!';
+  } catch (e) {
+    if (onFallback) onFallback(text);
+  }
+  setTimeout(() => { button.textContent = original; }, 1500);
+}

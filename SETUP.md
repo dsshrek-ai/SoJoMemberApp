@@ -12,8 +12,7 @@ These steps use your own Google and GitHub accounts — nobody else needs to do 
    for that tab, so the header row and sample data land correctly. Delete the sample row(s) once
    you're comfortable, or leave them as a formatting reference.
 3. Tab names must match exactly (case-sensitive): `Schedule`, `Songs`, `Lyrics`, `Announcements`,
-   `VolunteerTasks`, `VolunteerSignups`, `Absences`, `Recognition`, `MusicFolders`, `Sponsors`,
-   `Settings`.
+   `VolunteerTasks`, `VolunteerSignups`, `Absences`, `Recognition`, `Sponsors`, `Settings`.
 
 ## 2. Create and deploy the Apps Script Web App
 
@@ -51,10 +50,10 @@ These steps use your own Google and GitHub accounts — nobody else needs to do 
 
 ## Ongoing content updates (no code changes needed)
 
-- Schedule, songs, lyrics, announcements, recognition, sponsors, folder assignments, and all the
-  `Settings` links/text (welcome message, donation link, registration/audition form links) are all
-  edited directly in the Google Sheet. Changes show up on the site the next time a page loads —
-  no redeploy needed.
+- Schedule, songs, lyrics, announcements, recognition, sponsors, and all the `Settings`
+  links/text (welcome message, donation link, registration/audition form links, instructions
+  page content) are all edited directly in the Google Sheet. Changes show up on the site the
+  next time a page loads — no redeploy needed.
 - Volunteer tasks: add a row to `VolunteerTasks` for each week/task with how many slots are
   needed; the app fills in `VolunteerSignups` automatically as members claim slots (Phase 3).
 
@@ -89,3 +88,19 @@ into the "To:" field of a new message in your phone's texting app. (An earlier v
 pre-filling recipients directly via an `sms:` link, but phones/carriers inconsistently honor
 multiple recipients that way — copy-and-paste is the reliable option.) Numbers with no phone on
 file are skipped, and duplicates are removed automatically.
+
+## Instructions page
+
+`instructions.html` is the last item in the nav on every page. It shows `Settings.InstructionsText`
+(same Key/Value pattern as `WelcomeMessage`), rendered with the same lightweight formatting
+described above — edit it any time via the `Settings` table in `admin.html`, or directly in the
+Sheet. Ships with example placeholder content covering each page; replace it with whatever's
+useful for your choir.
+
+## Inviting new members
+
+The Join Us page assumes whoever's viewing it is already a member (there's no login, so anyone
+browsing the site already got here somehow) — its "Invite a New Member" card has a **Copy Link**
+button that copies `NewMemberFormURL` to the clipboard, so members can paste it into a text or
+email to invite someone else. No changes needed beyond keeping `NewMemberFormURL` set in
+`Settings`.

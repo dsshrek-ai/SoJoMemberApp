@@ -20,8 +20,8 @@
     <a href="absent.html">Report Absence</a>
     <a href="recognition.html">Recognition</a>
     <a href="sponsors.html">Sponsors &amp; Giving</a>
-    <a href="folders.html">Music Folders</a>
     <a href="join.html" aria-current="page">Join Us</a>
+    <a href="instructions.html">Instructions</a>
   </nav>
 </header>
 <main id="main-content">
@@ -41,8 +41,12 @@
       const auditionUrl = val('AuditionFormURL');
       el.innerHTML = `
         <div class="card">
-          <h3>New Member Registration</h3>
-          ${registrationUrl ? `<p><a class="btn" href="${escapeHtml(registrationUrl)}" target="_blank" rel="noopener">Register Here</a></p>` : '<p class="placeholder-note">Registration link not set yet.</p>'}
+          <h3>Invite a New Member</h3>
+          ${registrationUrl ? `
+            <p>Know someone who'd love to join our choir? Copy the registration link below and paste it into a text or email to invite them.</p>
+            <p><button type="button" class="btn" id="copy-link-btn">Copy Link</button></p>
+            <div id="copy-status" class="placeholder-note" style="display:none;"></div>
+          ` : '<p class="placeholder-note">Registration link not set yet.</p>'}
         </div>
         <div class="card">
           <h3>Audition Opportunities</h3>
@@ -50,6 +54,17 @@
           ${auditionUrl ? `<p><a class="btn" href="${escapeHtml(auditionUrl)}" target="_blank" rel="noopener">Sign Up to Audition</a></p>` : ''}
         </div>
       `;
+
+      if (registrationUrl) {
+        const copyBtn = document.getElementById('copy-link-btn');
+        const copyStatus = document.getElementById('copy-status');
+        copyBtn.addEventListener('click', () => {
+          copyToClipboard(registrationUrl, copyBtn, (text) => {
+            copyStatus.textContent = `Couldn't copy automatically — here's the link: ${text}`;
+            copyStatus.style.display = '';
+          });
+        });
+      }
     } catch (e) {
       showPlaceholder(el, "This page will link to new-member registration and audition sign-up once the site is connected to the Google Sheet (Phase 1).");
     }

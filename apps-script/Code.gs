@@ -7,7 +7,6 @@ var READ_ACTIONS = {
   lyrics: "Lyrics",
   announcements: "Announcements",
   recognition: "Recognition",
-  folders: "MusicFolders",
   sponsors: "Sponsors",
   settings: "Settings",
 };
@@ -16,7 +15,7 @@ var READ_ACTIONS = {
 // sheet name being passed in from the client.
 var ADMIN_SHEETS = [
   "Schedule", "Songs", "Lyrics", "Announcements", "VolunteerTasks",
-  "VolunteerSignups", "Absences", "Recognition", "MusicFolders", "Sponsors", "Settings",
+  "VolunteerSignups", "Absences", "Recognition", "Sponsors", "Settings",
 ];
 
 // The public `settings` action must NOT return every row in the Settings tab — that tab
@@ -24,6 +23,7 @@ var ADMIN_SHEETS = [
 // to see. Add new public-facing settings keys here explicitly (allowlist, not blocklist).
 var PUBLIC_SETTINGS_KEYS = [
   "WelcomeMessage", "DonationURL", "NewMemberFormURL", "AuditionInfoText", "AuditionFormURL",
+  "InstructionsText",
 ];
 
 function doGet(e) {

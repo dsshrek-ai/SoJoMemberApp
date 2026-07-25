@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Music Folders | Choir App</title>
+<title>Instructions | Choir App</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -20,42 +20,27 @@
     <a href="absent.html">Report Absence</a>
     <a href="recognition.html">Recognition</a>
     <a href="sponsors.html">Sponsors &amp; Giving</a>
-    <a href="folders.html" aria-current="page">Music Folders</a>
     <a href="join.html">Join Us</a>
+    <a href="instructions.html" aria-current="page">Instructions</a>
   </nav>
 </header>
 <main id="main-content">
-  <h2>Music Folder Assignments</h2>
-  <input type="text" id="search" placeholder="Search your name&hellip;">
+  <h2>Instructions</h2>
   <div id="content">Loading&hellip;</div>
 </main>
 <footer class="site-footer">Choir App &mdash; built for our community</footer>
 <script src="js/api.js"></script>
 <script>
-  let allRows = [];
-  function render(rows) {
-    const el = document.getElementById('content');
-    if (!rows.length) {
-      el.innerHTML = `<p class="placeholder-note">No matches found.</p>`;
-      return;
-    }
-    el.innerHTML = rows.map(r => `
-      <div class="card">
-        <strong>${r.MemberName || ''}</strong> &mdash; Folder ${r.FolderAssignment || ''}
-      </div>
-    `).join('');
-  }
   (async () => {
     const el = document.getElementById('content');
     try {
-      allRows = await fetchData('folders');
-      render(allRows);
-      document.getElementById('search').addEventListener('input', (ev) => {
-        const q = ev.target.value.toLowerCase();
-        render(allRows.filter(r => (r.MemberName || '').toLowerCase().includes(q)));
-      });
+      const settings = await fetchData('settings');
+      const instructions = (settings.find(s => s.Key === 'InstructionsText') || {}).Value;
+      el.innerHTML = instructions
+        ? `<div class="card">${formatText(instructions)}</div>`
+        : `<p class="placeholder-note">No instructions have been set yet. The director can add them via the admin panel (Settings &rarr; InstructionsText).</p>`;
     } catch (e) {
-      showPlaceholder(el, "This page will let you look up your music folder number once the site is connected to the Google Sheet (Phase 1).");
+      showPlaceholder(el, "This page will show instructions for using the site once connected to the Google Sheet.");
     }
   })();
 </script>

@@ -6,3 +6,16 @@ AuditionInfoText,Auditions are held each semester. No experience required — ju
 AuditionFormURL,https://forms.google.com/your-audition-signup
 DirectorEmail,director@example.com
 AdminPassword,change-this-password
+InstructionsText,"Welcome! Here's a quick guide to using this site:
+
+- **Schedule** — upcoming rehearsals and performances, with parking and entrance info
+- **Songs** — rehearsal tracks and YouTube links for what we're learning
+- **Lyrics** — pick a song and your voice part to see just your lyrics
+- **Announcements** — the latest news from the director
+- **Volunteer** — sign up to help with things like setting up chairs
+- **Report Absence** — let us know if you can't make a rehearsal
+- **Recognition** — celebrating our members
+- **Sponsors & Giving** — thank you to our sponsors, and how to donate
+- **Join Us** — share this app with someone who'd like to join the choir
+
+Questions? Reach out to the director."

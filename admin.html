@@ -106,7 +106,6 @@
     VolunteerSignups: ['Date', 'TaskName', 'VolunteerName', 'PhoneNumber', 'Timestamp'],
     Absences: ['Date', 'MemberName', 'Note', 'Timestamp'],
     Recognition: ['Date', 'MemberName', 'Message'],
-    MusicFolders: ['MemberName', 'FolderAssignment'],
     Sponsors: ['SponsorName', 'LogoURL', 'Message', 'Tier'],
     Settings: ['Key', 'Value'],
   };
@@ -312,15 +311,9 @@
   }
 
   async function copyNumbers(button) {
-    const numbers = button.dataset.numbers;
-    const original = button.textContent;
-    try {
-      await navigator.clipboard.writeText(numbers);
-      button.textContent = 'Copied!';
-    } catch (e) {
-      showStatus(`Couldn't copy automatically — here are the numbers: ${numbers}`);
-    }
-    setTimeout(() => { button.textContent = original; }, 1500);
+    await copyToClipboard(button.dataset.numbers, button, (text) => {
+      showStatus(`Couldn't copy automatically — here are the numbers: ${text}`);
+    });
   }
 
   async function handleAction(sheetName, columns, button) {
