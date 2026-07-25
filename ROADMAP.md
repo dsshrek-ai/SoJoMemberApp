@@ -40,6 +40,9 @@ Admin (all POST, all require `password` matching `Settings.AdminPassword`, check
 in `requireAdmin`/`isAdmin`):
 - `adminAuth` → `{password}` → `{ok}`
 - `adminList` → `{password, sheet}` → `{ok, rows}` (rows include a `_row` sheet-row number)
+- `adminVolunteerTasks` → `{password}` → `{ok, rows}` — VolunteerTasks rows (with `_row`) plus
+  each row's `PhoneNumbers` array, computed in one execution (see "Post-roadmap additions" below
+  for why this exists instead of two `adminList` calls)
 - `adminAdd` → `{password, sheet, row: {...}}`
 - `adminUpdate` → `{password, sheet, row: <number>, values: {...}}`
 - `adminDelete` → `{password, sheet, row: <number>}`
@@ -75,11 +78,23 @@ replaying prior conversations.
 
 - **Phone numbers + "Text All"**: `volunteer.html` now collects a phone number (inline form,
   not `prompt()`) alongside the name at signup, stored in `VolunteerSignups.PhoneNumber`.
-  `admin.html`'s `VolunteerTasks` rows each get a **Text All** button that fetches matching
-  `VolunteerSignups` rows (same Date + TaskName), collects non-empty phone numbers, and opens
-  `sms:num1,num2,...` in the browser. Deliberately admin-only (password-gated) — phone numbers
-  are never included in the public `volunteerStatus` response, to avoid the same kind of leak
-  fixed in the AdminPassword/DirectorEmail incident below.
+  `admin.html`'s `VolunteerTasks` rows each get a **Text All** link that opens
+  `sms:num1,num2,...` for everyone signed up for that task. Deliberately admin-only
+  (password-gated) — phone numbers are never included in the public `volunteerStatus` response,
+  to avoid the same kind of leak fixed in the AdminPassword/DirectorEmail incident below.
+  - Two implementation issues along the way, both about the "Text All" data fetch:
+    1. `window.location.href = 'sms:...'` set inside an async click handler (after an `await`)
+       silently failed on iOS Safari — it only trusts sms:/tel: navigation as the *direct*
+       result of a click. Fixed by building a real `<a href="sms:...">` at render time instead.
+    2. Fetching VolunteerTasks and VolunteerSignups as two separate admin-gated requests
+       (tried sequentially, then in parallel via `Promise.all`) was unreliably slow — one
+       report of a 5-minute stall, though a plain wrong-password round trip completed in a
+       few seconds. The public `volunteerStatus` endpoint reads the same two tabs together in
+       a *single* execution and has never had this problem. Fixed by adding a dedicated
+       `adminVolunteerTasks` action (`getVolunteerTasksWithPhones()` in `Code.gs`) that does
+       the same — one request, both tabs read server-side — instead of two client-driven
+       admin calls. If a similar stall ever shows up elsewhere, prefer this pattern (one
+       request, server-side join) over multiple concurrent/sequential admin-gated calls.
 - **Security fix (public settings leak)**: the public `settings` GET action used to return the
   *entire* `Settings` tab, including `AdminPassword` and `DirectorEmail`, to any visitor. Fixed
   with a `PUBLIC_SETTINGS_KEYS` allowlist in `Code.gs` — only intentionally-public keys

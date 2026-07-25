@@ -71,6 +71,11 @@ function doPost(e) {
       return { ok: true, rows: sheetToObjectsWithRow(body.sheet) };
     }));
   }
+  if (body.action === "adminVolunteerTasks") {
+    return jsonResponse(requireAdmin(body, function () {
+      return { ok: true, rows: getVolunteerTasksWithPhones() };
+    }));
+  }
   if (body.action === "adminAdd") {
     return jsonResponse(requireAdmin(body, function () { return adminAdd(body); }));
   }
@@ -131,6 +136,24 @@ function getVolunteerStatus() {
       SlotsNeeded: task.SlotsNeeded,
       SlotsFilled: filled,
     };
+  });
+}
+
+// Admin-only: VolunteerTasks rows (with _row, for edit/delete) plus each task's list of
+// signed-up phone numbers, computed in one execution so the admin panel only needs a single
+// request instead of two separate adminList calls (which was the slow/stalling path).
+function getVolunteerTasksWithPhones() {
+  var tasks = sheetToObjectsWithRow("VolunteerTasks");
+  var signups = sheetToObjects("VolunteerSignups");
+  return tasks.map(function (task) {
+    var phones = signups
+      .filter(function (s) { return sameDate(s.Date, task.Date) && s.TaskName === task.TaskName; })
+      .map(function (s) { return s.PhoneNumber; })
+      .filter(function (p) { return p; });
+    var result = {};
+    for (var key in task) result[key] = task[key];
+    result.PhoneNumbers = phones;
+    return result;
   });
 }
 

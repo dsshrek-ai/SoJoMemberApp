@@ -134,11 +134,6 @@
     return h + ':' + mStr + ' ' + ampm;
   }
 
-  function sameDateStr(a, b) {
-    if (!a || !b) return false;
-    return new Date(a).toDateString() === new Date(b).toDateString();
-  }
-
   // Strips a typed phone number down to digits (keeping a leading +) for sms: links.
   function toSmsNumber(raw) {
     return (raw || '').replace(/[^\d+]/g, '');
@@ -242,18 +237,15 @@
     tableContainer.innerHTML = 'Loading…';
     const password = getPassword();
 
-    // For VolunteerTasks, also fetch signups (in parallel, not one-after-the-other — each
-    // Apps Script call can take a couple of seconds) so "Text All" can be a plain
-    // <a href="sms:...">, built at render time. iOS Safari (and others) only trust sms:/tel:
-    // navigation when it's the direct result of a click, not something set via JS after an
-    // `await` — so the href must already be correct before the user taps it.
-    const needsSignups = sheetName === 'VolunteerTasks';
-    let result, signupsResult;
+    // VolunteerTasks uses a dedicated action that computes phone numbers per task
+    // server-side, in one Apps Script execution — mirrors how the public volunteerStatus
+    // endpoint reads VolunteerTasks + VolunteerSignups together. Two separate admin-gated
+    // requests for this (tried first sequentially, then in parallel) both proved slow/
+    // unreliable in practice, so this collapses back to a single round trip.
+    const action = sheetName === 'VolunteerTasks' ? 'adminVolunteerTasks' : 'adminList';
+    let result;
     try {
-      [result, signupsResult] = await Promise.all([
-        postAction('adminList', { password, sheet: sheetName }),
-        needsSignups ? postAction('adminList', { password, sheet: 'VolunteerSignups' }).catch(() => ({ ok: false })) : Promise.resolve({ ok: true, rows: [] }),
-      ]);
+      result = await postAction(action, { password, sheet: sheetName });
     } catch (e) {
       tableContainer.innerHTML = `<p class="placeholder-note">Couldn't load ${escapeHtml(sheetName)}. Please try again.</p>`;
       return;
@@ -263,22 +255,17 @@
       return;
     }
 
-    renderTable(sheetName, result.rows, signupsResult.ok ? signupsResult.rows : []);
+    renderTable(sheetName, result.rows);
   }
 
-  function textAllLink(date, task, signupRows) {
-    const numbers = [...new Set(
-      signupRows
-        .filter(s => sameDateStr(s.Date, date) && s.TaskName === task)
-        .map(s => toSmsNumber(s.PhoneNumber))
-        .filter(n => n)
-    )];
+  function textAllLink(phoneNumbers) {
+    const numbers = [...new Set((phoneNumbers || []).map(toSmsNumber).filter(n => n))];
     return numbers.length
       ? `<a class="btn" href="sms:${numbers.join(',')}">Text All (${numbers.length})</a>`
       : `<span class="btn" style="opacity:0.5;" title="No phone numbers on file for this task">No Numbers</span>`;
   }
 
-  function renderTable(sheetName, rows, signupRows) {
+  function renderTable(sheetName, rows) {
     const columns = TABLES[sheetName];
     const headHtml = columns.map(c => `<th scope="col">${c}</th>`).join('') + '<th scope="col">Actions</th>';
     const bodyHtml = rows.map(r => `
@@ -287,7 +274,7 @@
         <td>
           <button class="btn" data-action="save">Save</button>
           <button class="btn" data-action="delete">Delete</button>
-          ${sheetName === 'VolunteerTasks' ? textAllLink(r.Date, r.TaskName, signupRows) : ''}
+          ${sheetName === 'VolunteerTasks' ? textAllLink(r.PhoneNumbers) : ''}
         </td>
       </tr>
     `).join('');
