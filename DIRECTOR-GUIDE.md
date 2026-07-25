@@ -38,9 +38,15 @@ blank and it'll sort in by date automatically.
 **Post a volunteer task (e.g. "set up chairs" for a rehearsal)**
 → Table: `VolunteerTasks`. Add the Date, a TaskName, and how many people you need
 (SlotsNeeded). Members sign up for it themselves on the Volunteer page — you don't need to fill
-in who's coming; that happens automatically in the `VolunteerSignups` table as people sign up.
+in who's coming; that happens automatically in the `VolunteerSignups` table as people sign up
+(including their phone number, so leave it blank when adding a task yourself).
 You generally shouldn't need to edit `VolunteerSignups` yourself, except to fix a mistake or
 remove a duplicate.
+
+**Text everyone signed up for a task**
+→ Table: `VolunteerTasks`. Each row has a **Text All** button. Click it and your phone's texting
+app opens with every phone number for that task's volunteers already filled in — just write your
+message and send. (Works best on a phone; on a computer without texting set up, nothing happens.)
 
 **Recognize a member (birthday, milestone, shout-out)**
 → Table: `Recognition`. Add a Date, the MemberName, and a short Message.

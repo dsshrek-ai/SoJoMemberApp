@@ -103,7 +103,7 @@
     Lyrics: ['SongTitle', 'Part', 'LyricsText'],
     Announcements: ['Date', 'Author', 'Message', 'Pinned'],
     VolunteerTasks: ['Date', 'TaskName', 'SlotsNeeded'],
-    VolunteerSignups: ['Date', 'TaskName', 'VolunteerName', 'Timestamp'],
+    VolunteerSignups: ['Date', 'TaskName', 'VolunteerName', 'PhoneNumber', 'Timestamp'],
     Absences: ['Date', 'MemberName', 'Note', 'Timestamp'],
     Recognition: ['Date', 'MemberName', 'Message'],
     MusicFolders: ['MemberName', 'FolderAssignment'],
@@ -132,6 +132,16 @@
     const ampm = h >= 12 ? 'PM' : 'AM';
     h = h % 12 || 12;
     return h + ':' + mStr + ' ' + ampm;
+  }
+
+  function sameDateStr(a, b) {
+    if (!a || !b) return false;
+    return new Date(a).toDateString() === new Date(b).toDateString();
+  }
+
+  // Strips a typed phone number down to digits (keeping a leading +) for sms: links.
+  function toSmsNumber(raw) {
+    return (raw || '').replace(/[^\d+]/g, '');
   }
 
   const passwordScreen = document.getElementById('password-screen');
@@ -253,6 +263,7 @@
         <td>
           <button class="btn" data-action="save">Save</button>
           <button class="btn" data-action="delete">Delete</button>
+          ${sheetName === 'VolunteerTasks' ? `<button class="btn" data-action="textAll" data-tt-date="${escapeHtml(r.Date)}" data-tt-task="${escapeHtml(r.TaskName)}">Text All</button>` : ''}
         </td>
       </tr>
     `).join('');
@@ -294,6 +305,30 @@
         showStatus('Could not add that row. Please try again.');
         button.disabled = false;
       }
+      return;
+    }
+
+    if (action === 'textAll') {
+      const date = button.dataset.ttDate;
+      const task = button.dataset.ttTask;
+      button.disabled = true;
+      const result = await postAction('adminList', { password, sheet: 'VolunteerSignups' }).catch(() => ({ ok: false }));
+      button.disabled = false;
+      if (!result.ok) {
+        showStatus('Could not load signups for texting. Please try again.');
+        return;
+      }
+      const numbers = [...new Set(
+        result.rows
+          .filter(s => sameDateStr(s.Date, date) && s.TaskName === task)
+          .map(s => toSmsNumber(s.PhoneNumber))
+          .filter(n => n)
+      )];
+      if (!numbers.length) {
+        showStatus(`No phone numbers found for "${task}" on ${date}.`);
+        return;
+      }
+      window.location.href = 'sms:' + numbers.join(',');
       return;
     }
 

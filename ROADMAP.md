@@ -18,7 +18,7 @@ by the app itself, via the Apps Script API.
 | `Lyrics` | SongTitle, Part, LyricsText |
 | `Announcements` | Date, Author, Message, Pinned |
 | `VolunteerTasks` | Date, TaskName, SlotsNeeded |
-| `VolunteerSignups` | Date, TaskName, VolunteerName, Timestamp |
+| `VolunteerSignups` | Date, TaskName, VolunteerName, PhoneNumber, Timestamp |
 | `Absences` | Date, MemberName, Note, Timestamp |
 | `Recognition` | Date, MemberName, Message |
 | `MusicFolders` | MemberName, FolderAssignment |
@@ -31,7 +31,9 @@ Starter CSVs for each tab are in `sheet-templates/`.
 
 Public (no password, used by member-facing pages):
 - `GET ?action=schedule|songs|lyrics|announcements|volunteerStatus|recognition|folders|sponsors|settings`
-- `POST {action: "claimSlot", date, taskName, volunteerName}` — guarded by `LockService`
+- `POST {action: "claimSlot", date, taskName, volunteerName, phoneNumber}` — guarded by `LockService`.
+  Writes are header-driven (`headers.map(...)`), not positional, so adding/reordering
+  VolunteerSignups columns in the Sheet won't break it as long as header names match.
 - `POST {action: "markAbsent", date, memberName, note}` — emails `DirectorEmail` (from Settings) if set
 
 Admin (all POST, all require `password` matching `Settings.AdminPassword`, checked server-side
@@ -68,3 +70,19 @@ in `requireAdmin`/`isAdmin`):
 All six phases are done. Future work isn't pre-planned — pick up wherever the user wants next;
 this file plus `SETUP.md` and `DIRECTOR-GUIDE.md` should be enough context to do that without
 replaying prior conversations.
+
+## Post-roadmap additions
+
+- **Phone numbers + "Text All"**: `volunteer.html` now collects a phone number (inline form,
+  not `prompt()`) alongside the name at signup, stored in `VolunteerSignups.PhoneNumber`.
+  `admin.html`'s `VolunteerTasks` rows each get a **Text All** button that fetches matching
+  `VolunteerSignups` rows (same Date + TaskName), collects non-empty phone numbers, and opens
+  `sms:num1,num2,...` in the browser. Deliberately admin-only (password-gated) — phone numbers
+  are never included in the public `volunteerStatus` response, to avoid the same kind of leak
+  fixed in the AdminPassword/DirectorEmail incident below.
+- **Security fix (public settings leak)**: the public `settings` GET action used to return the
+  *entire* `Settings` tab, including `AdminPassword` and `DirectorEmail`, to any visitor. Fixed
+  with a `PUBLIC_SETTINGS_KEYS` allowlist in `Code.gs` — only intentionally-public keys
+  (WelcomeMessage, DonationURL, NewMemberFormURL, AuditionInfoText, AuditionFormURL) are
+  returned publicly now. Keep this allowlist pattern in mind before ever adding a new
+  public-facing settings key or a new admin-only field to a Sheet that a public action reads.

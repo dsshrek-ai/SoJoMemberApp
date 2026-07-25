@@ -134,8 +134,8 @@ function getVolunteerStatus() {
   });
 }
 
-// Placeholder for Phase 3: claim a slot in VolunteerTasks/VolunteerSignups,
-// guarded by LockService so two people can't fill the last slot at once.
+// Claims a slot in VolunteerTasks/VolunteerSignups, guarded by LockService so two
+// people can't fill the last slot at once.
 function claimSlot(body) {
   var lock = LockService.getScriptLock();
   lock.waitLock(10000);
@@ -151,7 +151,15 @@ function claimSlot(body) {
       return { ok: false, reason: "full" };
     }
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("VolunteerSignups");
-    sheet.appendRow([body.date, body.taskName, body.volunteerName, new Date()]);
+    var headers = sheet.getDataRange().getValues()[0];
+    var rowData = {
+      Date: body.date,
+      TaskName: body.taskName,
+      VolunteerName: body.volunteerName,
+      PhoneNumber: body.phoneNumber || "",
+      Timestamp: new Date(),
+    };
+    sheet.appendRow(headers.map(function (h) { return cellValue(rowData, h); }));
     return { ok: true };
   } finally {
     lock.releaseLock();

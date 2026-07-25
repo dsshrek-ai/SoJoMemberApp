@@ -59,31 +59,65 @@
           <h3>${escapeHtml(r.TaskName)}</h3>
           <p><strong>${escapeHtml(r.Date)}</strong></p>
           <p>${r.SlotsFilled ?? 0} of ${r.SlotsNeeded ?? 0} slots filled</p>
-          <button class="btn" data-date="${escapeHtml(r.Date)}" data-task="${escapeHtml(r.TaskName)}" ${full ? 'disabled' : ''}>
-            ${full ? 'Full' : 'Sign Up'}
-          </button>
+          <div class="signup-actions" data-date="${escapeHtml(r.Date)}" data-task="${escapeHtml(r.TaskName)}">
+            <button class="btn signup-btn" ${full ? 'disabled' : ''}>${full ? 'Full' : 'Sign Up'}</button>
+            <form class="signup-form" style="display:none;">
+              <label>Your Name<br><input type="text" class="signup-name"></label>
+              <label>Phone Number (so we can text you reminders)<br><input type="tel" class="signup-phone"></label>
+              <p>
+                <button type="submit" class="btn confirm-signup-btn">Confirm</button>
+                <button type="button" class="btn cancel-signup-btn">Cancel</button>
+              </p>
+            </form>
+          </div>
         </div>
       `;
     }).join('');
   }
 
-  contentEl.addEventListener('click', async (ev) => {
-    const button = ev.target.closest('button[data-task]');
-    if (!button || button.disabled) return;
+  contentEl.addEventListener('click', (ev) => {
+    const signupBtn = ev.target.closest('.signup-btn');
+    if (signupBtn && !signupBtn.disabled) {
+      const wrap = signupBtn.closest('.signup-actions');
+      signupBtn.style.display = 'none';
+      wrap.querySelector('.signup-form').style.display = '';
+      wrap.querySelector('.signup-name').focus();
+      return;
+    }
 
-    const volunteerName = prompt('Your name, for the sign-up sheet:');
-    if (!volunteerName || !volunteerName.trim()) return;
+    const cancelBtn = ev.target.closest('.cancel-signup-btn');
+    if (cancelBtn) {
+      const wrap = cancelBtn.closest('.signup-actions');
+      wrap.querySelector('.signup-form').style.display = 'none';
+      wrap.querySelector('.signup-btn').style.display = '';
+    }
+  });
 
-    button.disabled = true;
-    button.textContent = 'Signing up…';
+  contentEl.addEventListener('submit', async (ev) => {
+    if (!ev.target.classList.contains('signup-form')) return;
+    ev.preventDefault();
+
+    const form = ev.target;
+    const wrap = form.closest('.signup-actions');
+    const nameInput = form.querySelector('.signup-name');
+    const phoneInput = form.querySelector('.signup-phone');
+    const volunteerName = nameInput.value.trim();
+    const phoneNumber = phoneInput.value.trim();
+    if (!volunteerName) { nameInput.focus(); return; }
+    if (!phoneNumber) { phoneInput.focus(); return; }
+
+    const confirmBtn = form.querySelector('.confirm-signup-btn');
+    confirmBtn.disabled = true;
+    confirmBtn.textContent = 'Signing up…';
     try {
       const result = await postAction('claimSlot', {
-        date: button.dataset.date,
-        taskName: button.dataset.task,
-        volunteerName: volunteerName.trim(),
+        date: wrap.dataset.date,
+        taskName: wrap.dataset.task,
+        volunteerName,
+        phoneNumber,
       });
       if (result.ok) {
-        showStatus(`Thanks, ${volunteerName.trim()}! You're signed up for "${button.dataset.task}".`);
+        showStatus(`Thanks, ${volunteerName}! You're signed up for "${wrap.dataset.task}".`);
       } else if (result.reason === 'full') {
         showStatus('Sorry, that slot just filled up.');
       } else {

@@ -75,3 +75,16 @@ Setup:
    old password will be rejected on their next action.
 4. "Lock" on the admin page clears the password from that browser tab — useful on a shared
    computer. It's also cleared automatically when the browser tab closes.
+
+## Texting volunteers ("Text All")
+
+`VolunteerSignups` has a `PhoneNumber` column, filled in automatically when a member signs up
+on the Volunteer page. If your sheet was created before this feature, add a column named exactly
+`PhoneNumber` to the `VolunteerSignups` tab (any position — `Code.gs` writes by column name, not
+position, so where you put it doesn't matter).
+
+In `admin.html`, open the `VolunteerTasks` table — each row has a **Text All** button that
+collects every phone number signed up for that task/date and opens your phone's texting app with
+all of them pre-filled (via an `sms:` link). This only works meaningfully on a phone with a
+texting app; on a desktop browser without one, nothing will happen. Numbers with no phone on file
+are skipped, and duplicates are removed automatically.
