@@ -42,12 +42,12 @@
       el.innerHTML = `
         <div class="card">
           <h3>New Member Registration</h3>
-          ${registrationUrl ? `<p><a class="btn" href="${registrationUrl}" target="_blank" rel="noopener">Register Here</a></p>` : '<p class="placeholder-note">Registration link not set yet.</p>'}
+          ${registrationUrl ? `<p><a class="btn" href="${escapeHtml(registrationUrl)}" target="_blank" rel="noopener">Register Here</a></p>` : '<p class="placeholder-note">Registration link not set yet.</p>'}
         </div>
         <div class="card">
           <h3>Audition Opportunities</h3>
-          ${auditionText ? `<p>${auditionText}</p>` : ''}
-          ${auditionUrl ? `<p><a class="btn" href="${auditionUrl}" target="_blank" rel="noopener">Sign Up to Audition</a></p>` : ''}
+          ${formatText(auditionText)}
+          ${auditionUrl ? `<p><a class="btn" href="${escapeHtml(auditionUrl)}" target="_blank" rel="noopener">Sign Up to Audition</a></p>` : ''}
         </div>
       `;
     } catch (e) {

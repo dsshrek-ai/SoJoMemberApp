@@ -48,8 +48,8 @@
       el.innerHTML = sorted.map(r => `
         <div class="card ${(r.Pinned || '').toUpperCase() === 'Y' ? 'pinned' : ''}">
           ${(r.Pinned || '').toUpperCase() === 'Y' ? '<span class="badge">Pinned</span>' : ''}
-          <p><strong>${r.Date || ''}</strong>${r.Author ? ' &mdash; ' + r.Author : ''}</p>
-          <p>${r.Message || ''}</p>
+          <p><strong>${escapeHtml(r.Date)}</strong>${r.Author ? ' &mdash; ' + escapeHtml(r.Author) : ''}</p>
+          ${formatText(r.Message)}
         </div>
       `).join('');
     } catch (e) {

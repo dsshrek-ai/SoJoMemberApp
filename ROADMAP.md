@@ -110,3 +110,12 @@ replaying prior conversations.
   (WelcomeMessage, DonationURL, NewMemberFormURL, AuditionInfoText, AuditionFormURL) are
   returned publicly now. Keep this allowlist pattern in mind before ever adding a new
   public-facing settings key or a new admin-only field to a Sheet that a public action reads.
+- **Lightweight text formatting**: `js/api.js` adds `formatText(raw)` — a small Markdown-style
+  renderer (not real Google Sheets cell formatting, which isn't reachable through the plain
+  `getValues()`/`setValues()` API this app uses). Supports `**bold**`, `*italic*`, blank-line
+  paragraphs, `- ` bullet lists, and `1. ` numbered lists; escapes the input first via
+  `escapeHtml()` so the Sheet cell just holds plain text with no injection risk. Used for
+  Announcements/Recognition/Sponsors `Message`, and the `WelcomeMessage`/`AuditionInfoText`
+  Settings values — not for `LyricsText` (which keeps its own simpler line-break-only
+  rendering in `lyrics.html`) or short fields like Title/Date/Location. Documented for the
+  director in `DIRECTOR-GUIDE.md`.

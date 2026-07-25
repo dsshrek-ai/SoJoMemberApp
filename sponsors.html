@@ -54,10 +54,10 @@
       }
       el.innerHTML = rows.map(r => `
         <div class="card">
-          <h3>${r.SponsorName || ''}</h3>
-          ${r.Tier ? `<span class="badge">${r.Tier}</span>` : ''}
-          ${r.Message ? `<p>${r.Message}</p>` : ''}
-          ${r.LogoURL ? `<p><a href="${r.LogoURL}" target="_blank" rel="noopener">Learn more</a></p>` : ''}
+          <h3>${escapeHtml(r.SponsorName)}</h3>
+          ${r.Tier ? `<span class="badge">${escapeHtml(r.Tier)}</span>` : ''}
+          ${formatText(r.Message)}
+          ${r.LogoURL ? `<p><a href="${escapeHtml(r.LogoURL)}" target="_blank" rel="noopener">Learn more</a></p>` : ''}
         </div>
       `).join('');
     } catch (e) {

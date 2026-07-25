@@ -53,3 +53,32 @@ function escapeHtml(str) {
   div.textContent = str ?? '';
   return div.innerHTML;
 }
+
+// Renders lightweight, Markdown-style plain text as safe HTML: **bold**, *italic*, blank-line
+// paragraphs, "- " bullet lists, and "1. " numbered lists. The Sheet cell itself just holds
+// plain text with these symbols typed in — no real formatting is stored, only interpreted here.
+function formatText(raw) {
+  const escaped = escapeHtml(raw ?? '');
+  const blocks = escaped.split(/\n\s*\n/);
+  return blocks
+    .map(block => {
+      const lines = block.split('\n').filter(line => line.trim() !== '');
+      if (!lines.length) return '';
+      if (lines.every(line => /^-\s+/.test(line))) {
+        const items = lines.map(line => `<li>${inlineFormat(line.replace(/^-\s+/, ''))}</li>`).join('');
+        return `<ul>${items}</ul>`;
+      }
+      if (lines.every(line => /^\d+\.\s+/.test(line))) {
+        const items = lines.map(line => `<li>${inlineFormat(line.replace(/^\d+\.\s+/, ''))}</li>`).join('');
+        return `<ol>${items}</ol>`;
+      }
+      return `<p>${lines.map(inlineFormat).join('<br>')}</p>`;
+    })
+    .join('');
+}
+
+function inlineFormat(text) {
+  return text
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>');
+}

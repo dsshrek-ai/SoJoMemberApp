@@ -102,6 +102,19 @@ h2 {
   border-color: var(--color-accent);
 }
 
+.card ul, .card ol {
+  margin: 0.5rem 0;
+  padding-left: 1.75rem;
+}
+
+.card li {
+  margin-bottom: 0.35rem;
+}
+
+.card p:last-child, .card ul:last-child, .card ol:last-child {
+  margin-bottom: 0;
+}
+
 .badge {
   display: inline-block;
   background: var(--color-accent);

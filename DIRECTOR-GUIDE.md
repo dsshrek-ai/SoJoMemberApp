@@ -72,6 +72,28 @@ To change any of these, find that row in the `Settings` table and edit the Value
 **Assign a music folder number to a member**
 → Table: `MusicFolders`. MemberName and their FolderAssignment number.
 
+## Formatting your text
+
+Message-style boxes (Announcements, Recognition, Sponsors, and the WelcomeMessage/
+AuditionInfoText Settings) support a few simple symbols instead of a formatting toolbar:
+
+- `**bold**` → **bold**
+- `*italic*` → *italic*
+- A blank line between lines starts a new paragraph
+- Lines starting with `- ` become a bulleted list
+- Lines starting with `1. `, `2. `, etc. become a numbered list
+
+For example, typing:
+```
+Reminders for this week:
+
+- Bring your **black folder**
+- Arrive by *6:45 PM*
+```
+shows up as a paragraph followed by a bulleted list, with "black folder" bold and "6:45 PM"
+italic. This only applies to those message-style boxes — things like Title, Date, or Location
+just show up as plain text exactly as typed.
+
 ## Changing the admin password
 
 Table: `Settings` → find the `AdminPassword` row → edit the Value → **Save**. Anyone using the
