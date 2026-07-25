@@ -263,9 +263,16 @@
 
   function textAllLink(phoneNumbers) {
     const numbers = [...new Set((phoneNumbers || []).map(toSmsNumber).filter(n => n))];
-    return numbers.length
-      ? `<a class="btn" href="sms:${numbers.join(',')}">Text All (${numbers.length})</a>`
-      : `<span class="btn" style="opacity:0.5;" title="No phone numbers on file for this task">No Numbers</span>`;
+    if (!numbers.length) {
+      return `<span class="btn" style="opacity:0.5;" title="No phone numbers on file for this task">No Numbers</span>`;
+    }
+    // iOS/Android inconsistently honor multiple comma-separated recipients in an sms: link
+    // (sometimes only the first one opens), so "Copy Numbers" is a reliable fallback to
+    // paste into Messages manually.
+    return `
+      <a class="btn" href="sms:${numbers.join(',')}">Text All (${numbers.length})</a>
+      <button type="button" class="btn copy-numbers-btn" data-numbers="${numbers.join(', ')}">Copy Numbers</button>
+    `;
   }
 
   function renderTable(sheetName, rows) {
@@ -302,6 +309,21 @@
     tableContainer.querySelectorAll('.expand-btn').forEach(button => {
       button.addEventListener('click', () => openExpandEditor(button.previousElementSibling));
     });
+    tableContainer.querySelectorAll('.copy-numbers-btn').forEach(button => {
+      button.addEventListener('click', () => copyNumbers(button));
+    });
+  }
+
+  async function copyNumbers(button) {
+    const numbers = button.dataset.numbers;
+    const original = button.textContent;
+    try {
+      await navigator.clipboard.writeText(numbers);
+      button.textContent = 'Copied!';
+    } catch (e) {
+      showStatus(`Couldn't copy automatically — here are the numbers: ${numbers}`);
+    }
+    setTimeout(() => { button.textContent = original; }, 1500);
   }
 
   async function handleAction(sheetName, columns, button) {
