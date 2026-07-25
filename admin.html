@@ -240,9 +240,20 @@
 
   async function loadTable(sheetName) {
     tableContainer.innerHTML = 'Loading…';
-    let result;
+    const password = getPassword();
+
+    // For VolunteerTasks, also fetch signups (in parallel, not one-after-the-other — each
+    // Apps Script call can take a couple of seconds) so "Text All" can be a plain
+    // <a href="sms:...">, built at render time. iOS Safari (and others) only trust sms:/tel:
+    // navigation when it's the direct result of a click, not something set via JS after an
+    // `await` — so the href must already be correct before the user taps it.
+    const needsSignups = sheetName === 'VolunteerTasks';
+    let result, signupsResult;
     try {
-      result = await postAction('adminList', { password: getPassword(), sheet: sheetName });
+      [result, signupsResult] = await Promise.all([
+        postAction('adminList', { password, sheet: sheetName }),
+        needsSignups ? postAction('adminList', { password, sheet: 'VolunteerSignups' }).catch(() => ({ ok: false })) : Promise.resolve({ ok: true, rows: [] }),
+      ]);
     } catch (e) {
       tableContainer.innerHTML = `<p class="placeholder-note">Couldn't load ${escapeHtml(sheetName)}. Please try again.</p>`;
       return;
@@ -252,17 +263,7 @@
       return;
     }
 
-    // For VolunteerTasks, pre-fetch signups so "Text All" can be a plain <a href="sms:...">
-    // built at render time. iOS Safari (and others) only trust sms:/tel: navigation when
-    // it's the direct result of a click, not something set via JS after an `await` — so the
-    // href must already be correct before the user taps it, not computed in a click handler.
-    let signupRows = [];
-    if (sheetName === 'VolunteerTasks') {
-      const signupsResult = await postAction('adminList', { password: getPassword(), sheet: 'VolunteerSignups' }).catch(() => ({ ok: false }));
-      if (signupsResult.ok) signupRows = signupsResult.rows;
-    }
-
-    renderTable(sheetName, result.rows, signupRows);
+    renderTable(sheetName, result.rows, signupsResult.ok ? signupsResult.rows : []);
   }
 
   function textAllLink(date, task, signupRows) {
