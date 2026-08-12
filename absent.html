@@ -31,6 +31,20 @@
     <label for="name">Your Name</label>
     <input type="text" id="name" required>
 
+    <label for="position">Your Section/Position</label>
+    <select id="position" required>
+      <option value="" disabled selected>Choose one&hellip;</option>
+      <option>Soprano - 1st</option>
+      <option>Soprano - 2nd</option>
+      <option>Alto - 1st</option>
+      <option>Alto - 2nd</option>
+      <option>Tenor - 1st</option>
+      <option>Tenor - 2nd</option>
+      <option>Bass - 1st</option>
+      <option>Bass - 2nd</option>
+      <option>HOLD</option>
+    </select>
+
     <label for="date">Date You'll Miss</label>
     <input type="date" id="date" required>
 
@@ -52,15 +66,16 @@
   document.getElementById('absence-form').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const name = document.getElementById('name').value.trim();
+    const position = document.getElementById('position').value;
     const date = document.getElementById('date').value;
     const note = document.getElementById('note').value.trim();
-    if (!name || !date) return;
+    if (!name || !position || !date) return;
 
     const submitBtn = ev.target.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
     submitBtn.textContent = 'Submitting…';
     try {
-      const result = await postAction('markAbsent', { date, memberName: name, note });
+      const result = await postAction('markAbsent', { date, memberName: name, position, note });
       if (result.ok) {
         showStatus(`Thanks, ${name} — we've noted you'll be out on ${date}.`);
         ev.target.reset();

@@ -68,16 +68,19 @@
   <h1>South Jordan Choral Arts Community Choir &mdash; Admin</h1>
 </header>
 <main id="main-content">
-  <div id="password-screen" class="card">
-    <h2>Enter Admin Password</h2>
-    <p id="auth-error" class="placeholder-note" style="display:none;">Incorrect password.</p>
-    <label for="password-input">Password</label>
-    <input type="password" id="password-input">
-    <p><button id="unlock-btn" class="btn">Unlock</button></p>
+  <div id="login-screen" class="card">
+    <h2>Log In</h2>
+    <p id="auth-error" class="placeholder-note" style="display:none;">Incorrect email or password.</p>
+    <label for="login-email">Email</label>
+    <input type="email" id="login-email" autocomplete="username">
+    <label for="login-pw">Password</label>
+    <input type="password" id="login-pw" autocomplete="current-password">
+    <p><button id="login-btn" class="btn">Log In</button></p>
+    <p class="placeholder-note">Same login as My Apps Hub. Not signed up yet? Sign up there first, then ask to be granted access to this app.</p>
   </div>
 
   <div id="panel" style="display:none;">
-    <p><button id="lock-btn" class="btn">Lock</button></p>
+    <p><button id="logout-btn" class="btn">Log Out</button></p>
     <label for="table-select">Table</label>
     <select id="table-select"></select>
     <div id="status" class="placeholder-note" style="display:none;"></div>
@@ -104,14 +107,20 @@
     Announcements: ['Date', 'Author', 'Message', 'Pinned'],
     VolunteerTasks: ['Date', 'TaskName', 'SlotsNeeded'],
     VolunteerSignups: ['Date', 'TaskName', 'VolunteerName', 'PhoneNumber', 'Timestamp'],
-    Absences: ['Date', 'MemberName', 'Note', 'Timestamp'],
+    Absences: ['Date', 'MemberName', 'Position', 'Note', 'Timestamp'],
     Recognition: ['Date', 'MemberName', 'Message'],
     Sponsors: ['SponsorName', 'LogoURL', 'Message', 'Tier'],
     Settings: ['Key', 'Value'],
+    SectionLeaders: ['Position', 'LeaderName', 'LeaderEmail'],
   };
   const LONG_TEXT_COLUMNS = new Set(['LyricsText', 'Message', 'Notes', 'Note', 'Value']);
   const DATE_COLUMNS = new Set(['Date', 'LastRehearsedDate']);
   const TIME_COLUMNS = new Set(['Time']);
+  const POSITION_COLUMNS = new Set(['Position']);
+  const POSITIONS = [
+    'Soprano - 1st', 'Soprano - 2nd', 'Alto - 1st', 'Alto - 2nd',
+    'Tenor - 1st', 'Tenor - 2nd', 'Bass - 1st', 'Bass - 2nd', 'HOLD',
+  ];
 
   // Sheet Time cells come back formatted as "7:00 PM" (see Code.gs formatCell), but
   // <input type="time"> needs 24-hour "HH:MM". Convert both directions.
@@ -141,7 +150,7 @@
     return String(raw ?? '').replace(/[^\d+]/g, '');
   }
 
-  const passwordScreen = document.getElementById('password-screen');
+  const loginScreen = document.getElementById('login-screen');
   const panel = document.getElementById('panel');
   const authError = document.getElementById('auth-error');
   const tableSelect = document.getElementById('table-select');
@@ -153,21 +162,53 @@
     statusEl.style.display = '';
   }
 
-  function getPassword() {
-    return sessionStorage.getItem('adminPassword') || '';
+  // Session-scoped, not localStorage: this panel edits real member data
+  // (phone numbers, absence notes), so on a shared computer the login
+  // clears itself automatically when the tab closes, same as the old
+  // shared-password version did.
+  const AUTH_KEY = 'choirAdminAuth';
+  let auth = null; // { token, displayName }
+  function loadAuth() { try { return JSON.parse(sessionStorage.getItem(AUTH_KEY)); } catch { return null; } }
+  function saveAuth(a) { sessionStorage.setItem(AUTH_KEY, JSON.stringify(a)); }
+  function clearAuth() { sessionStorage.removeItem(AUTH_KEY); }
+
+  // No auth yet during the login call itself, so only attach the header once
+  // we actually have a token (login/checkAccess-before-login run without one).
+  function authHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    if (auth && auth.token) headers['Authorization'] = `Bearer ${auth.token}`;
+    return headers;
   }
 
-  async function tryUnlock(password) {
+  // api.php reads `action` from the POST body (not the query string), same
+  // as every other action in this app — see api/api.php's router.
+  async function callAdmin(action, payload) {
+    const res = await fetch(CONFIG.API_URL, {
+      method: 'POST', headers: authHeaders(), body: JSON.stringify({ action, ...(payload || {}) }),
+    });
+    return res.json();
+  }
+
+  async function checkAccess() {
     try {
-      const result = await postAction('adminAuth', { password });
+      const result = await callAdmin('checkAccess');
       return !!result.ok;
     } catch (e) {
       return false;
     }
   }
 
+  function showLogin(message) {
+    clearAuth();
+    auth = null;
+    panel.style.display = 'none';
+    loginScreen.style.display = '';
+    authError.style.display = message ? '' : 'none';
+    if (message) authError.textContent = message;
+  }
+
   function showPanel() {
-    passwordScreen.style.display = 'none';
+    loginScreen.style.display = 'none';
     panel.style.display = '';
     if (!tableSelect.options.length) {
       tableSelect.innerHTML = Object.keys(TABLES).map(t => `<option value="${t}">${t}</option>`).join('');
@@ -176,20 +217,37 @@
     }
   }
 
-  document.getElementById('unlock-btn').addEventListener('click', async () => {
-    const password = document.getElementById('password-input').value;
+  async function attemptLogin() {
+    const username = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-pw').value;
     authError.style.display = 'none';
-    if (await tryUnlock(password)) {
-      sessionStorage.setItem('adminPassword', password);
-      showPanel();
-    } else {
+    if (!username || !password) return;
+    try {
+      const data = await callAdmin('login', { username, password });
+      if (!data.token) {
+        authError.textContent = data.error || 'Incorrect email or password.';
+        authError.style.display = '';
+        return;
+      }
+      auth = { token: data.token, displayName: data.displayName || username };
+      saveAuth(auth);
+      if (await checkAccess()) {
+        showPanel();
+      } else {
+        showLogin("You're logged in, but not authorized for this admin panel. Ask to be granted access.");
+      }
+    } catch (e) {
+      authError.textContent = 'Something went wrong logging in. Please try again.';
       authError.style.display = '';
     }
-  });
+  }
 
-  document.getElementById('lock-btn').addEventListener('click', () => {
-    sessionStorage.removeItem('adminPassword');
-    location.reload();
+  document.getElementById('login-btn').addEventListener('click', attemptLogin);
+  document.getElementById('login-pw').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') attemptLogin(); });
+
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    try { await callAdmin('logout', { token: auth.token }); } catch (e) {}
+    showLogin();
   });
 
   function fieldInput(col, value) {
@@ -199,6 +257,12 @@
     }
     if (TIME_COLUMNS.has(col)) {
       return `<input type="time" data-col="${col}" value="${escapeHtml(to24Hour(value))}">`;
+    }
+    if (POSITION_COLUMNS.has(col)) {
+      const options = ['', ...POSITIONS].map(p =>
+        `<option value="${p}" ${p === value ? 'selected' : ''}>${p || '(none)'}</option>`
+      ).join('');
+      return `<select data-col="${col}">${options}</select>`;
     }
     if (LONG_TEXT_COLUMNS.has(col)) {
       return `<div class="long-text-field">
@@ -237,23 +301,24 @@
 
   async function loadTable(sheetName) {
     tableContainer.innerHTML = 'Loading…';
-    const password = getPassword();
 
     // VolunteerTasks uses a dedicated action that computes phone numbers per task
-    // server-side, in one Apps Script execution — mirrors how the public volunteerStatus
-    // endpoint reads VolunteerTasks + VolunteerSignups together. Two separate admin-gated
-    // requests for this (tried first sequentially, then in parallel) both proved slow/
-    // unreliable in practice, so this collapses back to a single round trip.
+    // server-side, in one request — mirrors how the public volunteerStatus endpoint
+    // reads VolunteerTasks + VolunteerSignups together.
     const action = sheetName === 'VolunteerTasks' ? 'adminVolunteerTasks' : 'adminList';
     let result;
     try {
-      result = await postAction(action, { password, sheet: sheetName });
+      result = await callAdmin(action, { sheet: sheetName });
     } catch (e) {
       tableContainer.innerHTML = `<p class="placeholder-note">Couldn't load ${escapeHtml(sheetName)}. Please try again.</p>`;
       return;
     }
     if (!result.ok) {
-      tableContainer.innerHTML = `<p class="placeholder-note">Not authorized. Try locking and re-entering the password.</p>`;
+      if (/session|authoriz/i.test(result.error || '')) {
+        showLogin('Your saved login stopped working. Please log in again.');
+      } else {
+        tableContainer.innerHTML = `<p class="placeholder-note">Not authorized.</p>`;
+      }
       return;
     }
 
@@ -319,12 +384,11 @@
   async function handleAction(sheetName, columns, button) {
     const action = button.dataset.action;
     const tr = button.closest('tr');
-    const password = getPassword();
 
     if (action === 'add') {
       const row = readRow(tr, columns);
       button.disabled = true;
-      const result = await postAction('adminAdd', { password, sheet: sheetName, row }).catch(() => ({ ok: false }));
+      const result = await callAdmin('adminAdd', { sheet: sheetName, row }).catch(() => ({ ok: false }));
       if (result.ok) {
         loadTable(sheetName);
       } else {
@@ -339,7 +403,7 @@
     if (action === 'save') {
       const values = readRow(tr, columns);
       button.disabled = true;
-      const result = await postAction('adminUpdate', { password, sheet: sheetName, row: rowNumber, values }).catch(() => ({ ok: false }));
+      const result = await callAdmin('adminUpdate', { sheet: sheetName, row: rowNumber, values }).catch(() => ({ ok: false }));
       if (result.ok) {
         showStatus('Saved.');
       } else {
@@ -352,7 +416,7 @@
     if (action === 'delete') {
       if (!confirm('Delete this row? This cannot be undone.')) return;
       button.disabled = true;
-      const result = await postAction('adminDelete', { password, sheet: sheetName, row: rowNumber }).catch(() => ({ ok: false }));
+      const result = await callAdmin('adminDelete', { sheet: sheetName, row: rowNumber }).catch(() => ({ ok: false }));
       if (result.ok) {
         loadTable(sheetName);
       } else {
@@ -363,9 +427,21 @@
   }
 
   (async () => {
-    const savedPassword = getPassword();
-    if (savedPassword && await tryUnlock(savedPassword)) {
+    // Single sign-on: My Apps Hub launches this app with ?token=... when the
+    // visitor is already logged in there, so this skips its own login screen.
+    const ssoToken = new URLSearchParams(window.location.search).get('token');
+    if (ssoToken) {
+      auth = { token: ssoToken, displayName: '' };
+      saveAuth(auth);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else {
+      auth = loadAuth();
+    }
+    if (!auth) return;
+    if (await checkAccess()) {
       showPanel();
+    } else {
+      showLogin("You're logged in, but not authorized for this admin panel. Ask to be granted access.");
     }
   })();
 </script>

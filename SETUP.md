@@ -1,106 +1,87 @@
 # Setup Guide
 
-These steps use your own Google and GitHub accounts — nobody else needs to do this part.
+This app is backed by **MyDataWorld**, the same shared database as My Apps Hub, T-Minus, Shed
+Inventory, and PWI Weight Tracker. Public pages (schedule, songs, lyrics, announcements,
+volunteer signup, absence reporting, etc.) stay exactly as open as they've always been — no
+login. Only the **admin panel** (`admin.html`) requires logging in now, using the same account
+as every other MyDataWorld app.
 
-## 1. Create the Google Sheet
+## 1. Update the database
 
-1. Go to [sheets.google.com](https://sheets.google.com) and create a new blank spreadsheet.
-   Name it something like "Choir App Data".
-2. For each file in `sheet-templates/`, create a matching tab (right-click the tab bar → "Insert
-   sheet") named exactly after the file (e.g. `Schedule`, `Songs`, `Lyrics`, …), then use
-   **File → Import → Upload** and choose "Insert new sheet" replaced with "Replace current sheet"
-   for that tab, so the header row and sample data land correctly. Delete the sample row(s) once
-   you're comfortable, or leave them as a formatting reference.
-3. Tab names must match exactly (case-sensitive): `Schedule`, `Songs`, `Lyrics`, `Announcements`,
-   `VolunteerTasks`, `VolunteerSignups`, `Absences`, `Recognition`, `Sponsors`, `Settings`.
+Open **phpMyAdmin**, select the MyDataWorld database, go to the **SQL** tab, and run everything
+in [`api/schema.sql`](api/schema.sql). It's safe to run even if `users`/`sessions` already exist
+(from My Apps Hub or another app) — those use `CREATE TABLE IF NOT EXISTS`. This also requires
+My Apps Hub's own `api/schema.sql` to have already been run at least once (this app reads the
+shared `apps`/`app_access` tables, including the `can_edit` column, that Hub's schema creates).
 
-## 2. Create and deploy the Apps Script Web App
+## 2. Deploy the API
 
-1. In the Sheet, go to **Extensions → Apps Script**. This opens a script bound to your Sheet —
-   that binding is what lets `SpreadsheetApp.getActiveSpreadsheet()` find it automatically.
-2. Delete the default `Code.gs` contents and paste in the contents of this repo's
-   `apps-script/Code.gs`.
-3. Click **Deploy → New deployment**.
-   - Type: **Web app**
-   - Execute as: **Me**
-   - Who has access: **Anyone**
-4. Click **Deploy**, authorize the script when prompted (it needs access to your own Sheet),
-   and copy the resulting web app URL (ends in `/exec`).
-5. Keep this URL — you'll paste it into the site config next.
+1. Copy `api/config.example.php` to `api/config.php` and fill in the real `DB_NAME`, `DB_USER`,
+   `DB_PASS` (same credentials as your other MyDataWorld apps) and `FROM_EMAIL`.
+2. Upload the whole `api/` folder via FTP/File Manager — e.g. `seniorfamily.org/choir-api/`.
 
-> Re-deploying: whenever you edit `Code.gs`, choose **Deploy → Manage deployments → Edit → New
-> version** so the live URL picks up your changes.
+## 3. Point the site at your API
 
-## 3. Point the site at your deployment
+In `js/api.js`:
 
-1. Open `js/api.js` in this repo.
-2. Replace `PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE` with the URL from step 2.4.
+```js
+const CONFIG = {
+  API_URL: "https://seniorfamily.org/choir-api/api.php",
+};
+```
 
-## 4. Put it on GitHub Pages
+Every page (public and admin) reads this one constant — nothing else needs to change per page.
 
-1. Create a new GitHub repository (public or private both work with GitHub Pages, though a
-   private repo needs GitHub Pro/Team/Enterprise for Pages).
-2. Push this `choir-app/` folder's contents to the repo (ask your assistant to prepare the
-   commit and confirm before it pushes, since pushing to GitHub is a shared/external action).
-3. In the repo's **Settings → Pages**, set the source to the branch you pushed (e.g. `main`) and
-   root folder, then save. GitHub will give you a URL like
-   `https://<username>.github.io/<repo-name>/`.
-4. Visit that URL — you should see the Home page with your welcome message (once `Settings` has
-   a `WelcomeMessage` row) and working navigation across all pages.
+## 4. Publish
 
-## Ongoing content updates (no code changes needed)
+Push this repo (GitHub Pages) or upload the files directly to seniorfamily.org — same as before.
 
-- Schedule, songs, lyrics, announcements, recognition, sponsors, and all the `Settings`
-  links/text (welcome message, donation link, registration/audition form links, instructions
-  page content) are all edited directly in the Google Sheet. Changes show up on the site the
-  next time a page loads — no redeploy needed.
-- Volunteer tasks: add a row to `VolunteerTasks` for each week/task with how many slots are
-  needed; the app fills in `VolunteerSignups` automatically as members claim slots (Phase 3).
+## 5. Grant yourself admin access
 
-## Admin/maintenance panel (`admin.html`)
+1. Sign up through **My Apps Hub** with your email, if you haven't already.
+2. Either uncomment and run the bootstrap query at the bottom of `api/schema.sql` (fill in your
+   email), or open the Hub's `admin.html` and grant yourself the "Choir Admin Panel" app — same
+   two-step process as any other private app in the Hub.
+3. Repeat for anyone else who does maintenance (section leaders, co-directors, etc.) — have them
+   sign up through the Hub first, then grant them "Choir Admin Panel" access the same way.
 
-Instead of opening the Google Sheet directly, you (or a section leader) can add/edit/delete rows
-in any tab from `admin.html` — it's not linked from the public nav, so bookmark it directly:
+There's no more `AdminPassword` — anyone with an `app_access` grant for `choir-admin-panel` can
+get in, and anyone without one can't, regardless of what they know.
 
-`https://<username>.github.io/<repo-name>/admin.html`
+## 6. Section leaders (for absence-report emails)
 
-Setup:
-1. In the `Settings` tab, set a row with **Key** `AdminPassword` and a **Value** of your choice —
-   this is the one password anyone doing maintenance will enter (not a per-person login).
-2. Visit `admin.html`, enter that password, and pick a table from the dropdown to add, edit, or
-   delete rows directly — no Sheets required.
-3. The password is checked by the Apps Script itself, not just the page, so it's safe even though
-   the site has no other login. Change `AdminPassword` any time to revoke access; anyone with an
-   old password will be rejected on their next action.
-4. "Lock" on the admin page clears the password from that browser tab — useful on a shared
-   computer. It's also cleared automatically when the browser tab closes.
+When a member reports an absence, the app emails whoever's listed for their Position — not a
+single director inbox. Set this up once you're in the admin panel:
 
-## Texting volunteers ("Copy Numbers")
+1. Open `admin.html`, pick the **SectionLeaders** table.
+2. Add one row per Position (Soprano - 1st, Soprano - 2nd, Alto - 1st, Alto - 2nd, Tenor - 1st,
+   Tenor - 2nd, Bass - 1st, Bass - 2nd, HOLD) with that section's leader's name and email.
+3. If a Position has no row (or an empty LeaderEmail), the email falls back to
+   `Settings.DirectorEmail` if you've set one; if neither exists, the absence is still recorded,
+   it just doesn't email anyone.
 
-`VolunteerSignups` has a `PhoneNumber` column, filled in automatically when a member signs up
-on the Volunteer page. If your sheet was created before this feature, add a column named exactly
-`PhoneNumber` to the `VolunteerSignups` tab (any position — `Code.gs` writes by column name, not
-position, so where you put it doesn't matter).
+Position values match the SOJO roster app's list, but the two apps don't share data — this is
+its own small table, maintained here.
 
-In `admin.html`, open the `VolunteerTasks` table — each row has a **Copy Numbers** button that
-copies every distinct phone number signed up for that task/date to your clipboard, ready to paste
-into the "To:" field of a new message in your phone's texting app. (An earlier version tried
-pre-filling recipients directly via an `sms:` link, but phones/carriers inconsistently honor
-multiple recipients that way — copy-and-paste is the reliable option.) Numbers with no phone on
-file are skipped, and duplicates are removed automatically.
+## Data migration (Google Sheets → MyDataWorld)
 
-## Instructions page
+If you're moving existing content out of the old Sheet, for each tab you want to keep:
 
-`instructions.html` is the last item in the nav on every page. It shows `Settings.InstructionsText`
-(same Key/Value pattern as `WelcomeMessage`), rendered with the same lightweight formatting
-described above — edit it any time via the `Settings` table in `admin.html`, or directly in the
-Sheet. Ships with example placeholder content covering each page; replace it with whatever's
-useful for your choir.
+1. Export it as CSV (**File → Download → Comma-separated values**) from the Google Sheet.
+2. Import that CSV into a staging table in phpMyAdmin (**Import** tab), then run an
+   `INSERT ... SELECT` mapping its columns into the matching `choir_*` table (see
+   `api/schema.sql` for the column names). Small tabs (Settings, Sponsors, VolunteerTasks) are
+   usually easiest to just hand-enter directly through the admin panel instead.
+3. `Absences` gained a `Position` column that the old Sheet never had — existing rows can be left
+   blank there; only new reports (via the updated form) fill it in.
+4. Drop the `AdminPassword` row entirely — it's no longer read anywhere. Keep `DirectorEmail` if
+   you want it as an absence-email fallback (see "Section leaders" above).
+5. Once verified, the old Apps Script deployment and Google Sheet can be retired.
 
-## Inviting new members
+## Single sign-on
 
-The Join Us page assumes whoever's viewing it is already a member (there's no login, so anyone
-browsing the site already got here somehow) — its "Invite a New Member" card has a **Copy Link**
-button that copies `NewMemberFormURL` to the clipboard, so members can paste it into a text or
-email to invite someone else. No changes needed beyond keeping `NewMemberFormURL` set in
-`Settings`.
+If `apps.sso_enabled = 1` is set for `choir-admin-panel` in My Apps Hub's database, launching
+the admin panel from the Hub skips its login screen entirely (`?token=...` handoff). The login
+is session-scoped (`sessionStorage`, not `localStorage`) even with SSO, since this panel edits
+real member data (phone numbers, absence notes) and may run on a shared computer — it clears
+itself when the browser tab closes.

@@ -7,8 +7,9 @@ the **Admin Panel**, a page on the site made just for this.
 
 1. Go to `https://dsshrek-ai.github.io/SoJoMemberApp/admin.html` (bookmark this — it's not on
    the regular site menu, on purpose, so members don't stumble into it).
-2. Enter the admin password and click **Unlock**. (If you don't know it, see "Changing the admin
-   password" below — someone with access to the Google Sheet can look it up or change it.)
+2. Log in with your email and password — the same account you use for My Apps Hub and any other
+   apps there. If you don't have one yet, sign up through the Hub first, then ask to be granted
+   access to the "Choir Admin Panel" app.
 3. Use the **Table** dropdown to pick what you want to update.
 
 Every table works the same way: each row has a **Save** button (after you edit any box in that
@@ -49,6 +50,12 @@ are on file for that task. Tap it to copy the full list to your clipboard, then 
 the "To:" field of a new message in your phone's texting app. (Phones/carriers don't reliably
 support pre-filling multiple recipients from a link, so copy-and-paste is the dependable way.)
 
+**Set up who gets emailed about absences**
+→ Table: `SectionLeaders`. One row per Position (e.g. "Soprano - 1st") with that section's
+leader's name and email. When someone reports an absence, whoever's listed for their Position
+gets the email — not one shared inbox. A Position with no row (or a blank email) falls back to
+`Settings.DirectorEmail` if you've set one.
+
 **Recognize a member (birthday, milestone, shout-out)**
 → Table: `Recognition`. Add a Date, the MemberName, and a short Message.
 
@@ -64,8 +71,8 @@ the site:
 - `NewMemberFormURL` — the registration link members copy from the Join Us page to invite others
 - `AuditionInfoText` / `AuditionFormURL` — text and link on the Join Us page
 - `InstructionsText` — shown on the Instructions page (last item in the site menu)
-- `DirectorEmail` — if set, you'll get an email whenever someone reports an absence
-- `AdminPassword` — the password for this admin panel (see below)
+- `DirectorEmail` — fallback email for absence reports when a Position has no one listed in
+  `SectionLeaders` (see above)
 
 To change any of these, find that row in the `Settings` table and edit the Value box, then
 **Save**. Don't change the Key names — the site looks for them by that exact spelling.
@@ -97,18 +104,18 @@ shows up as a paragraph followed by a bulleted list, with "black folder" bold an
 italic. This only applies to those message-style boxes — things like Title, Date, or Location
 just show up as plain text exactly as typed.
 
-## Changing the admin password
+## Managing who has admin access
 
-Table: `Settings` → find the `AdminPassword` row → edit the Value → **Save**. Anyone using the
-old password will be locked out immediately; share the new one with whoever else does
-maintenance.
+There's no shared password anymore — access is per-person, through My Apps Hub's admin tool
+(same place you'd manage access to any other app there). Grant or remove someone's "Choir Admin
+Panel" access there; they need their own account (sign up through the Hub) but nothing else.
 
 ## A few things to know
 
 - Changes show up on the site right away — no waiting, no redeploying anything.
 - If you ever add a brand-new Settings key by mistake, it just won't do anything (the site only
   looks for the specific keys listed above) — safe to delete it.
-- The **Lock** button on the admin page clears your password from that browser tab. Use it on a
-  shared computer. It also clears automatically when you close the tab.
+- The **Log Out** button on the admin page clears your login from that browser tab. It also
+  clears automatically when you close the tab — useful on a shared computer.
 - If something looks wrong on the live site right after a change, try refreshing the page —
   occasionally there's a short delay before it shows up.

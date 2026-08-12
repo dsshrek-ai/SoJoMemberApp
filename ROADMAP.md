@@ -1,17 +1,21 @@
 # Choir App Roadmap
 
-Architecture: static HTML/CSS/JS (this repo) hosted on GitHub Pages, talking to a single
-Google Apps Script Web App (`apps-script/Code.gs`), which reads/writes a Google Sheet.
-No login for members — the Apps Script runs under the director's Google account, so it can
-write to the Sheet without members ever signing in.
+**Architecture as of the MyDataWorld migration** (see "Post-roadmap additions" for the full
+writeup): static HTML/CSS/JS (this repo) hosted on GitHub Pages, talking to `api/api.php` on
+**MyDataWorld** (shared MySQL database with My Apps Hub, T-Minus, Shed Inventory, and PWI
+Weight Tracker). No login for members — public actions (schedule, songs, lyrics, announcements,
+volunteer signup, absence reporting, etc.) are unauthenticated, same as before. Only the admin
+panel (`admin.html`) requires logging in, via the shared MyDataWorld account.
 
-The director edits most content **directly in the Sheet** (announcements, schedule, songs,
-recognition, sponsors, settings). Only volunteer-slot claims and absence marks are written
-by the app itself, via the Apps Script API.
+The phase history below (0–6) describes the **original Google Sheets/Apps Script** version.
+It's kept for historical context — the Sheet-specific details (tab names, `Code.gs`, CSV
+templates) no longer reflect how the app actually works, but the *behavior* they describe
+(what each page does, what the admin panel edits) carried over unchanged into the MySQL
+version. See `api/schema.sql` for the current table layout and `SETUP.md` for deployment.
 
-## Sheet tabs
+## Data tables (formerly Sheet tabs)
 
-| Tab | Columns |
+| Table | Columns |
 |---|---|
 | `Schedule` | Date, Time, Type, Title, Location, ParkingNotes, EntranceNotes, Notes |
 | `Songs` | Title, RehearsalTrackURL, YouTubeURL, LastRehearsedDate, Status |
@@ -19,36 +23,37 @@ by the app itself, via the Apps Script API.
 | `Announcements` | Date, Author, Message, Pinned |
 | `VolunteerTasks` | Date, TaskName, SlotsNeeded |
 | `VolunteerSignups` | Date, TaskName, VolunteerName, PhoneNumber, Timestamp |
-| `Absences` | Date, MemberName, Note, Timestamp |
+| `Absences` | Date, MemberName, Position, Note, Timestamp |
 | `Recognition` | Date, MemberName, Message |
 | `Sponsors` | SponsorName, LogoURL, Message, Tier |
 | `Settings` | Key, Value |
+| `SectionLeaders` | Position, LeaderName, LeaderEmail |
 
-Starter CSVs for each tab are in `sheet-templates/`. `MusicFolders` was an app feature in an
-earlier phase — it's been unwired entirely (no page, no admin table, no API action) per the
-user's request; the tab may still exist in an existing Sheet, the app just no longer touches it.
+`MusicFolders` was an app feature in an earlier phase — it was unwired entirely (no page, no
+admin table, no API action) per the user's request, and doesn't exist in the MySQL schema at
+all. `SectionLeaders` is new — see "Post-roadmap additions".
 
-## Apps Script API
+## api/api.php
 
-Public (no password, used by member-facing pages):
+Public (no auth, used by member-facing pages) — same contract as the old Apps Script version:
 - `GET ?action=schedule|songs|lyrics|announcements|volunteerStatus|recognition|sponsors|settings`
-- `POST {action: "claimSlot", date, taskName, volunteerName, phoneNumber}` — guarded by `LockService`.
-  Writes are header-driven (`headers.map(...)`), not positional, so adding/reordering
-  VolunteerSignups columns in the Sheet won't break it as long as header names match.
-- `POST {action: "markAbsent", date, memberName, note}` — emails `DirectorEmail` (from Settings) if set
+- `POST {action: "claimSlot", date, taskName, volunteerName, phoneNumber}` — guarded by a MySQL
+  named lock (`GET_LOCK`), same role `LockService` played before.
+- `POST {action: "markAbsent", date, memberName, position, note}` — emails the `SectionLeaders`
+  row for `position`, falling back to `Settings.DirectorEmail` if unset.
 
-Admin (all POST, all require `password` matching `Settings.AdminPassword`, checked server-side
-in `requireAdmin`/`isAdmin`):
-- `adminAuth` → `{password}` → `{ok}`
-- `adminList` → `{password, sheet}` → `{ok, rows}` (rows include a `_row` sheet-row number)
-- `adminVolunteerTasks` → `{password}` → `{ok, rows}` — VolunteerTasks rows (with `_row`) plus
-  each row's `PhoneNumbers` array, computed in one execution (see "Post-roadmap additions" below
-  for why this exists instead of two `adminList` calls)
-- `adminAdd` → `{password, sheet, row: {...}}`
-- `adminUpdate` → `{password, sheet, row: <number>, values: {...}}`
-- `adminDelete` → `{password, sheet, row: <number>}`
+Admin (all POST, require `Authorization: Bearer <MyDataWorld session token>` +
+`app_access` for `choir-admin-panel`, checked in `requireUser`/`requireChoirAdminAccess`):
+- `login` / `logout` / `checkAccess`
+- `adminList` → `{sheet}` → `{ok, rows}` (rows include a `_row` id — the table's MySQL `id` now,
+  not a Sheet row number, but the same JSON key so the front end didn't need to change)
+- `adminVolunteerTasks` → `{ok, rows}` — VolunteerTasks rows (with `_row`) plus each row's
+  `PhoneNumbers` array, computed in one query (see "Post-roadmap additions" for why)
+- `adminAdd` → `{sheet, row: {...}}`
+- `adminUpdate` → `{sheet, row: <id>, values: {...}}`
+- `adminDelete` → `{sheet, row: <id>}`
 
-`sheet` must be one of `ADMIN_SHEETS` in `Code.gs` (all 10 tabs — `MusicFolders` was removed).
+`sheet` must be one of the keys in `$SHEET_TABLES` in `api/api.php` (the 11 tables above).
 
 ## Phases
 
@@ -137,3 +142,28 @@ replaying prior conversations.
   admin.html's Copy Numbers) that copies `NewMemberFormURL` to the clipboard, with instructions
   to paste it into a text or email. Falls back to showing the raw link as text if clipboard
   access fails, same pattern as Copy Numbers.
+- **Migrated off Google Sheets/Apps Script to MyDataWorld**: `apps-script/Code.gs` and
+  `sheet-templates/` are gone; `api/api.php` on MyDataWorld (MySQL) replaces them entirely,
+  mirroring the old JSON contract exactly for every public action (same PascalCase field names,
+  same action names) so `js/api.js` only needed its endpoint URL changed — no public page
+  (`schedule.html`, `songs.html`, etc.) required any edits. What did change:
+  - **Admin login**: the shared `Settings.AdminPassword` is gone. `admin.html` now logs in with
+    the same MyDataWorld account as My Apps Hub/T-Minus/Shed Inventory/PWI, and access is gated
+    by an `app_access` grant for `choir-admin-panel` (managed from the Hub's own admin tool,
+    exactly like any other private app there) — not a shared secret typed into a page. Supports
+    the same `?token=` SSO handoff from the Hub as the other apps. Deliberately kept in
+    `sessionStorage` rather than `localStorage` (unlike the other apps' `localStorage`-based
+    auth) to preserve the old "clears on tab close" property, since this panel touches real
+    member data (phone numbers, absence notes) and may run on a shared computer.
+  - **Absence emails now route by section, not to one inbox**: `absent.html` gained a required
+    Position dropdown (matching the SOJO roster app's position list, though the two apps don't
+    share any data). A new `SectionLeaders` table (Position → LeaderName/LeaderEmail, editable
+    from the admin panel) drives who gets emailed; `Settings.DirectorEmail` is now only a
+    fallback for a Position with no leader on file, not the sole recipient. Email sends via
+    PHP's `mail()` (was Google's `MailApp`) and is best-effort — a failed send never blocks the
+    absence from being recorded.
+  - **Row identity**: `_row` in admin API responses is now each table's MySQL auto-increment
+    `id` rather than a literal Sheet row number — same JSON key, so `admin.html`'s existing
+    save/delete-by-`_row` logic needed no changes.
+  - Data migration (existing Sheet content) is a manual one-time CSV export/import per tab —
+    see `SETUP.md`.
