@@ -115,6 +115,13 @@ h2 {
   margin-bottom: 0;
 }
 
+.card img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  margin: 0.5rem 0;
+}
+
 .badge {
   display: inline-block;
   background: var(--color-accent);

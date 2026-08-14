@@ -50,9 +50,10 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// Renders lightweight, Markdown-style plain text as safe HTML: **bold**, *italic*, blank-line
-// paragraphs, "- " bullet lists, and "1. " numbered lists. The Sheet cell itself just holds
-// plain text with these symbols typed in — no real formatting is stored, only interpreted here.
+// Renders lightweight, Markdown-style plain text as safe HTML: **bold**, *italic*,
+// ![alt](url) images, blank-line paragraphs, "- " bullet lists, and "1. " numbered
+// lists. The Sheet cell itself just holds plain text with these symbols typed in —
+// no real formatting is stored, only interpreted here.
 function formatText(raw) {
   const escaped = escapeHtml(raw ?? '');
   const blocks = escaped.split(/\n\s*\n/);
@@ -75,6 +76,13 @@ function formatText(raw) {
 
 function inlineFormat(text) {
   return text
+    // Image syntax first, so a * inside alt text or a URL can't be mistaken for
+    // bold/italic markers. `text` is already HTML-escaped by formatText, but that
+    // escaping doesn't cover quotes (fine for text nodes, not for attribute
+    // values), so quotes are escaped here specifically for the src/alt attributes.
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, url) =>
+      `<img src="${url.replace(/"/g, '&quot;')}" alt="${alt.replace(/"/g, '&quot;')}">`
+    )
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>');
 }
