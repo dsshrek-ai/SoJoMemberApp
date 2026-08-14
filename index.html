@@ -38,9 +38,9 @@
       const welcome = (settings.find(s => s.Key === 'WelcomeMessage') || {}).Value;
       el.innerHTML = welcome
         ? `<div class="card">${formatText(welcome)}</div>`
-        : `<p class="placeholder-note">No welcome message has been set yet. The director can add one in the Settings tab of the Sheet.</p>`;
+        : `<p class="placeholder-note">No welcome message has been set yet. The director can add one via the admin panel (Settings &rarr; WelcomeMessage).</p>`;
     } catch (e) {
-      showPlaceholder(el, "This page will show a welcome message from the director once the site is connected to the Google Sheet (Phase 1).");
+      showPlaceholder(el, "Couldn't load right now — check your connection and try refreshing.");
     }
   })();
 </script>

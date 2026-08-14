@@ -122,8 +122,8 @@
     'Tenor - 1st', 'Tenor - 2nd', 'Bass - 1st', 'Bass - 2nd', 'HOLD',
   ];
 
-  // Sheet Time cells come back formatted as "7:00 PM" (see Code.gs formatCell), but
-  // <input type="time"> needs 24-hour "HH:MM". Convert both directions.
+  // Time values are stored pre-formatted as "7:00 PM" text (choir_schedule.time_text),
+  // but <input type="time"> needs 24-hour "HH:MM". Convert both directions.
   function to24Hour(str) {
     const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec((str || '').trim());
     if (!m) return '';
@@ -140,14 +140,6 @@
     const ampm = h >= 12 ? 'PM' : 'AM';
     h = h % 12 || 12;
     return h + ':' + mStr + ' ' + ampm;
-  }
-
-  // Strips a typed phone number down to digits (keeping a leading +) for sms: links.
-  function toSmsNumber(raw) {
-    // Google Sheets auto-detects all-digit text (e.g. a phone number typed with no dashes)
-    // as a Number, not a string -- so `raw` may already be a number here, and calling
-    // .replace() on it directly would throw. Coerce to string first.
-    return String(raw ?? '').replace(/[^\d+]/g, '');
   }
 
   const loginScreen = document.getElementById('login-screen');

@@ -47,7 +47,7 @@
     try {
       rows = await fetchData('lyrics');
     } catch (e) {
-      showPlaceholder(contentEl, "This page will let you pick a song and a voice part (soprano/alto/tenor/bass) and see just the lyrics, in large text, for quick review, once connected to the Google Sheet.");
+      showPlaceholder(contentEl, "Couldn't load right now — check your connection and try refreshing.");
       return;
     }
 

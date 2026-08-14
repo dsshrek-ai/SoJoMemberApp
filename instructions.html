@@ -40,7 +40,7 @@
         ? `<div class="card">${formatText(instructions)}</div>`
         : `<p class="placeholder-note">No instructions have been set yet. The director can add them via the admin panel (Settings &rarr; InstructionsText).</p>`;
     } catch (e) {
-      showPlaceholder(el, "This page will show instructions for using the site once connected to the Google Sheet.");
+      showPlaceholder(el, "Couldn't load right now — check your connection and try refreshing.");
     }
   })();
 </script>

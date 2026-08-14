@@ -45,7 +45,7 @@
     try {
       rows = await fetchData('volunteerStatus');
     } catch (e) {
-      showPlaceholder(contentEl, "This page will show volunteer tasks (like setting up chairs) with live slot counts and a sign-up button that locks the slot once claimed, once connected to the Google Sheet.");
+      showPlaceholder(contentEl, "Couldn't load right now — check your connection and try refreshing.");
       return;
     }
     if (!rows.length) {

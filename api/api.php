@@ -95,7 +95,7 @@ function requireChoirAdminAccess(array $user): void {
 // ---- Table registry: sheet name (as the front end already knows it) -> ----
 // ---- MySQL table + PascalCase JSON key -> snake_case column mapping    ----
 
-$SHEET_TABLES = [
+$DATA_TABLES = [
   'Schedule' => ['table' => 'choir_schedule', 'columns' => [
     'Date' => 'entry_date', 'Time' => 'time_text', 'Type' => 'type', 'Title' => 'title',
     'Location' => 'location', 'ParkingNotes' => 'parking_notes', 'EntranceNotes' => 'entrance_notes',
@@ -148,8 +148,8 @@ $PUBLIC_SETTINGS_KEYS = [
 ];
 
 function tableRowsWithId(string $sheetName): array {
-  global $SHEET_TABLES;
-  $spec = $SHEET_TABLES[$sheetName];
+  global $DATA_TABLES;
+  $spec = $DATA_TABLES[$sheetName];
   $result = db()->query("SELECT * FROM {$spec['table']} ORDER BY id");
   $rows = $result->fetch_all(MYSQLI_ASSOC);
   return array_map(function ($row) use ($spec) {
@@ -169,8 +169,8 @@ function tableRows(string $sheetName): array {
 }
 
 function adminInsertRow(string $sheetName, array $rowData): int {
-  global $SHEET_TABLES, $NUMERIC_COLUMNS;
-  $spec = $SHEET_TABLES[$sheetName];
+  global $DATA_TABLES, $NUMERIC_COLUMNS;
+  $spec = $DATA_TABLES[$sheetName];
   $cols = []; $placeholders = []; $types = ''; $values = [];
   foreach ($spec['columns'] as $jsonKey => $dbCol) {
     $cols[] = $dbCol;
@@ -193,8 +193,8 @@ function adminInsertRow(string $sheetName, array $rowData): int {
 }
 
 function adminUpdateRow(string $sheetName, int $id, array $rowData): void {
-  global $SHEET_TABLES, $NUMERIC_COLUMNS;
-  $spec = $SHEET_TABLES[$sheetName];
+  global $DATA_TABLES, $NUMERIC_COLUMNS;
+  $spec = $DATA_TABLES[$sheetName];
   $sets = []; $types = ''; $values = [];
   foreach ($spec['columns'] as $jsonKey => $dbCol) {
     $sets[] = "$dbCol = ?";
@@ -216,8 +216,8 @@ function adminUpdateRow(string $sheetName, int $id, array $rowData): void {
 }
 
 function adminDeleteRow(string $sheetName, int $id): void {
-  global $SHEET_TABLES;
-  $spec = $SHEET_TABLES[$sheetName];
+  global $DATA_TABLES;
+  $spec = $DATA_TABLES[$sheetName];
   $stmt = db()->prepare("DELETE FROM {$spec['table']} WHERE id = ?");
   $stmt->bind_param('i', $id);
   $stmt->execute();
@@ -341,8 +341,11 @@ function sendAbsenceEmail(string $memberName, string $date, string $position, st
   $body = $memberName . " reported they can't make it on " . $date .
     ($position ? ' (' . $position . ')' : '') .
     ($note ? "\n\nNote: " . $note : '');
-  $headers = 'From: ' . FROM_EMAIL . "\r\n";
-  @mail($leaderEmail, $subject, $body, $headers);
+  $headers = 'From: ' . FROM_EMAIL . "\r\n" . 'Reply-To: ' . FROM_EMAIL . "\r\n";
+  // Without -f, cPanel/Exim ignores the From: header for the SMTP envelope
+  // sender and substitutes the hosting account's own identity instead —
+  // that's what was showing up as the "from" address in recipients' inboxes.
+  @mail($leaderEmail, $subject, $body, $headers, '-f' . FROM_EMAIL);
 }
 
 // ---- Router ----
@@ -434,7 +437,7 @@ switch ($action) {
     $user = requireUser();
     requireChoirAdminAccess($user);
     $sheet = (string)($body['sheet'] ?? '');
-    if (!array_key_exists($sheet, $SHEET_TABLES)) {
+    if (!array_key_exists($sheet, $DATA_TABLES)) {
       respond(['ok' => false, 'reason' => 'unknown-sheet']);
     }
     respond(['ok' => true, 'rows' => tableRowsWithId($sheet)]);
@@ -450,7 +453,7 @@ switch ($action) {
     $user = requireUser();
     requireChoirAdminAccess($user);
     $sheet = (string)($body['sheet'] ?? '');
-    if (!array_key_exists($sheet, $SHEET_TABLES)) {
+    if (!array_key_exists($sheet, $DATA_TABLES)) {
       respond(['ok' => false, 'reason' => 'unknown-sheet']);
     }
     $id = adminInsertRow($sheet, (array)($body['row'] ?? []));
@@ -461,7 +464,7 @@ switch ($action) {
     $user = requireUser();
     requireChoirAdminAccess($user);
     $sheet = (string)($body['sheet'] ?? '');
-    if (!array_key_exists($sheet, $SHEET_TABLES)) {
+    if (!array_key_exists($sheet, $DATA_TABLES)) {
       respond(['ok' => false, 'reason' => 'unknown-sheet']);
     }
     $rowId = (int)($body['row'] ?? 0);
@@ -476,7 +479,7 @@ switch ($action) {
     $user = requireUser();
     requireChoirAdminAccess($user);
     $sheet = (string)($body['sheet'] ?? '');
-    if (!array_key_exists($sheet, $SHEET_TABLES)) {
+    if (!array_key_exists($sheet, $DATA_TABLES)) {
       respond(['ok' => false, 'reason' => 'unknown-sheet']);
     }
     $rowId = (int)($body['row'] ?? 0);

@@ -42,7 +42,7 @@
         ? `<div class="card"><a class="btn" href="${donationUrl}" target="_blank" rel="noopener">Support the Choir</a></div>`
         : `<p class="placeholder-note">No donation link has been set yet.</p>`;
     } catch (e) {
-      showPlaceholder(donateEl, "A donation link will appear here once the site is connected to the Google Sheet (Phase 1).");
+      showPlaceholder(donateEl, "Couldn't load right now — check your connection and try refreshing.");
     }
 
     const el = document.getElementById('content');
@@ -61,7 +61,7 @@
         </div>
       `).join('');
     } catch (e) {
-      showPlaceholder(el, "This page will recognize our sponsors once the site is connected to the Google Sheet (Phase 1).");
+      showPlaceholder(el, "Couldn't load right now — check your connection and try refreshing.");
     }
   })();
 </script>
