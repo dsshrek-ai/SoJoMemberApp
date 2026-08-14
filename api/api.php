@@ -105,9 +105,6 @@ $DATA_TABLES = [
     'Title' => 'title', 'RehearsalTrackURL' => 'rehearsal_track_url', 'YouTubeURL' => 'youtube_url',
     'LastRehearsedDate' => 'last_rehearsed_date', 'Status' => 'status',
   ]],
-  'Lyrics' => ['table' => 'choir_lyrics', 'columns' => [
-    'SongTitle' => 'song_title', 'Part' => 'part', 'LyricsText' => 'lyrics_text',
-  ]],
   'Announcements' => ['table' => 'choir_announcements', 'columns' => [
     'Date' => 'entry_date', 'Author' => 'author', 'Message' => 'message', 'Pinned' => 'pinned',
   ]],
@@ -140,6 +137,13 @@ $DATA_TABLES = [
 // in the front end work correctly instead of comparing lexically).
 $NUMERIC_COLUMNS = ['SlotsNeeded'];
 
+// Columns backed by a real SQL DATE column (see schema.sql). MySQL rejects an
+// empty string for a DATE column outright (it's not a valid date), so a
+// blank date field has to be sent as NULL instead of '' or the whole
+// insert/update fails — that's what made LastRehearsedDate feel "required"
+// even though the column itself is nullable.
+$DATE_COLUMNS = ['Date', 'LastRehearsedDate'];
+
 // The public `settings` action must NOT return every row — Settings also holds
 // DirectorEmail. Allowlist, not blocklist, matching the old Code.gs behavior.
 $PUBLIC_SETTINGS_KEYS = [
@@ -169,7 +173,7 @@ function tableRows(string $sheetName): array {
 }
 
 function adminInsertRow(string $sheetName, array $rowData): int {
-  global $DATA_TABLES, $NUMERIC_COLUMNS;
+  global $DATA_TABLES, $NUMERIC_COLUMNS, $DATE_COLUMNS;
   $spec = $DATA_TABLES[$sheetName];
   $cols = []; $placeholders = []; $types = ''; $values = [];
   foreach ($spec['columns'] as $jsonKey => $dbCol) {
@@ -178,6 +182,9 @@ function adminInsertRow(string $sheetName, array $rowData): int {
     if (in_array($jsonKey, $NUMERIC_COLUMNS, true)) {
       $types .= 'i';
       $values[] = (int)($rowData[$jsonKey] ?? 0);
+    } elseif (in_array($jsonKey, $DATE_COLUMNS, true)) {
+      $types .= 's';
+      $values[] = ($rowData[$jsonKey] ?? '') === '' ? null : (string)$rowData[$jsonKey];
     } else {
       $types .= 's';
       $values[] = (string)($rowData[$jsonKey] ?? '');
@@ -193,7 +200,7 @@ function adminInsertRow(string $sheetName, array $rowData): int {
 }
 
 function adminUpdateRow(string $sheetName, int $id, array $rowData): void {
-  global $DATA_TABLES, $NUMERIC_COLUMNS;
+  global $DATA_TABLES, $NUMERIC_COLUMNS, $DATE_COLUMNS;
   $spec = $DATA_TABLES[$sheetName];
   $sets = []; $types = ''; $values = [];
   foreach ($spec['columns'] as $jsonKey => $dbCol) {
@@ -201,6 +208,9 @@ function adminUpdateRow(string $sheetName, int $id, array $rowData): void {
     if (in_array($jsonKey, $NUMERIC_COLUMNS, true)) {
       $types .= 'i';
       $values[] = (int)($rowData[$jsonKey] ?? 0);
+    } elseif (in_array($jsonKey, $DATE_COLUMNS, true)) {
+      $types .= 's';
+      $values[] = ($rowData[$jsonKey] ?? '') === '' ? null : (string)$rowData[$jsonKey];
     } else {
       $types .= 's';
       $values[] = (string)($rowData[$jsonKey] ?? '');
@@ -360,12 +370,11 @@ switch ($action) {
 
   case 'schedule':
   case 'songs':
-  case 'lyrics':
   case 'announcements':
   case 'recognition':
   case 'sponsors': {
     $sheetByAction = [
-      'schedule' => 'Schedule', 'songs' => 'Songs', 'lyrics' => 'Lyrics',
+      'schedule' => 'Schedule', 'songs' => 'Songs',
       'announcements' => 'Announcements', 'recognition' => 'Recognition', 'sponsors' => 'Sponsors',
     ];
     respond(tableRows($sheetByAction[$action]));

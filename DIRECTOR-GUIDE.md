@@ -24,17 +24,13 @@ Title, Location, and if it applies, Parking and Entrance notes — then click **
 
 **Add a song, or update its rehearsal track / YouTube link**
 → Table: `Songs`. Add takes a Title and, if you have them, links for the rehearsal track and
-YouTube video, plus a Status like "Learning" or "Concert Ready".
-
-**Add lyrics for a song**
-→ Table: `Lyrics`. One row per song *and* voice part — so "Amazing Grace" needs up to four
-rows (Soprano, Alto, Tenor, Bass), each with that part's lyrics in the LyricsText box. This is
-what powers the "Lyrics by Part" page members use to look up just their part.
+YouTube video, plus a Status of "Active" or "On Hold" from the dropdown. LastRehearsedDate is
+optional — leave it blank for a brand-new song.
 
 **Post an announcement**
-→ Table: `Announcements`. Add a Date, your name as Author, and the Message. Set Pinned to `Y`
-if it should stay at the top of the list (e.g. something time-sensitive); otherwise leave it
-blank and it'll sort in by date automatically.
+→ Table: `Announcements`. Add a Date, your name as Author, and the Message. Set Pinned to
+"Yes" if it should stay at the top of the list (e.g. something time-sensitive); otherwise
+leave it "No" and it'll sort in by date automatically.
 
 **Post a volunteer task (e.g. "set up chairs" for a rehearsal)**
 → Table: `VolunteerTasks`. Add the Date, a TaskName, and how many people you need

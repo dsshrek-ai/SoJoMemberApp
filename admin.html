@@ -103,7 +103,6 @@
   const TABLES = {
     Schedule: ['Date', 'Time', 'Type', 'Title', 'Location', 'ParkingNotes', 'EntranceNotes', 'Notes'],
     Songs: ['Title', 'RehearsalTrackURL', 'YouTubeURL', 'LastRehearsedDate', 'Status'],
-    Lyrics: ['SongTitle', 'Part', 'LyricsText'],
     Announcements: ['Date', 'Author', 'Message', 'Pinned'],
     VolunteerTasks: ['Date', 'TaskName', 'SlotsNeeded'],
     VolunteerSignups: ['Date', 'TaskName', 'VolunteerName', 'PhoneNumber', 'Timestamp'],
@@ -113,7 +112,7 @@
     Settings: ['Key', 'Value'],
     SectionLeaders: ['Position', 'LeaderName', 'LeaderEmail'],
   };
-  const LONG_TEXT_COLUMNS = new Set(['LyricsText', 'Message', 'Notes', 'Note', 'Value']);
+  const LONG_TEXT_COLUMNS = new Set(['Message', 'Notes', 'Note', 'Value']);
   const DATE_COLUMNS = new Set(['Date', 'LastRehearsedDate']);
   const TIME_COLUMNS = new Set(['Time']);
   const POSITION_COLUMNS = new Set(['Position']);
@@ -121,6 +120,12 @@
     'Soprano - 1st', 'Soprano - 2nd', 'Alto - 1st', 'Alto - 2nd',
     'Tenor - 1st', 'Tenor - 2nd', 'Bass - 1st', 'Bass - 2nd', 'HOLD',
   ];
+  const STATUS_COLUMNS = new Set(['Status']);
+  const STATUSES = ['Active', 'On Hold'];
+  // Stored as 'Y'/'N' text (see choir_announcements.pinned); the public site
+  // only ever checks for an exact 'Y' (case-insensitive), so 'N' and '' are
+  // equivalent to it — see announcements.html.
+  const YES_NO_COLUMNS = new Set(['Pinned']);
 
   // Time values are stored pre-formatted as "7:00 PM" text (choir_schedule.time_text),
   // but <input type="time"> needs 24-hour "HH:MM". Convert both directions.
@@ -140,6 +145,13 @@
     const ampm = h >= 12 ? 'PM' : 'AM';
     h = h % 12 || 12;
     return h + ':' + mStr + ' ' + ampm;
+  }
+
+  // Strips a typed phone number down to digits (keeping a leading +) for the
+  // VolunteerTasks "Copy Numbers" button. Defensive String() coercion in
+  // case a value ever comes through as something other than a string.
+  function toSmsNumber(raw) {
+    return String(raw ?? '').replace(/[^\d+]/g, '');
   }
 
   const loginScreen = document.getElementById('login-screen');
@@ -255,6 +267,19 @@
         `<option value="${p}" ${p === value ? 'selected' : ''}>${p || '(none)'}</option>`
       ).join('');
       return `<select data-col="${col}">${options}</select>`;
+    }
+    if (STATUS_COLUMNS.has(col)) {
+      const options = ['', ...STATUSES].map(s =>
+        `<option value="${s}" ${s === value ? 'selected' : ''}>${s || '(none)'}</option>`
+      ).join('');
+      return `<select data-col="${col}">${options}</select>`;
+    }
+    if (YES_NO_COLUMNS.has(col)) {
+      const isYes = String(value ?? '').toUpperCase() === 'Y';
+      return `<select data-col="${col}">
+        <option value="N" ${!isYes ? 'selected' : ''}>No</option>
+        <option value="Y" ${isYes ? 'selected' : ''}>Yes</option>
+      </select>`;
     }
     if (LONG_TEXT_COLUMNS.has(col)) {
       return `<div class="long-text-field">

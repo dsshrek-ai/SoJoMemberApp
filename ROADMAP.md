@@ -3,7 +3,7 @@
 **Architecture as of the MyDataWorld migration** (see "Post-roadmap additions" for the full
 writeup): static HTML/CSS/JS (this repo) hosted on GitHub Pages, talking to `api/api.php` on
 **MyDataWorld** (shared MySQL database with My Apps Hub, T-Minus, Shed Inventory, and PWI
-Weight Tracker). No login for members — public actions (schedule, songs, lyrics, announcements,
+Weight Tracker). No login for members — public actions (schedule, songs, announcements,
 volunteer signup, absence reporting, etc.) are unauthenticated, same as before. Only the admin
 panel (`admin.html`) requires logging in, via the shared MyDataWorld account.
 
@@ -19,7 +19,6 @@ version. See `api/schema.sql` for the current table layout and `SETUP.md` for de
 |---|---|
 | `Schedule` | Date, Time, Type, Title, Location, ParkingNotes, EntranceNotes, Notes |
 | `Songs` | Title, RehearsalTrackURL, YouTubeURL, LastRehearsedDate, Status |
-| `Lyrics` | SongTitle, Part, LyricsText |
 | `Announcements` | Date, Author, Message, Pinned |
 | `VolunteerTasks` | Date, TaskName, SlotsNeeded |
 | `VolunteerSignups` | Date, TaskName, VolunteerName, PhoneNumber, Timestamp |
@@ -31,7 +30,9 @@ version. See `api/schema.sql` for the current table layout and `SETUP.md` for de
 
 `MusicFolders` was an app feature in an earlier phase — it was unwired entirely (no page, no
 admin table, no API action) per the user's request, and doesn't exist in the MySQL schema at
-all. `SectionLeaders` is new — see "Post-roadmap additions".
+all. `Lyrics` (SongTitle, Part, LyricsText) was removed the same way — no page, no admin
+table entry, no API action — though `choir_lyrics` is left in place in MySQL, just unused.
+`SectionLeaders` is new — see "Post-roadmap additions".
 
 ## api/api.php
 
