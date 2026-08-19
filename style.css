@@ -201,6 +201,64 @@ form label {
   line-height: 1.8;
 }
 
+.member-lookup .found-note {
+  font-size: 0.95rem;
+  margin-top: 0.4rem;
+}
+
+.member-lookup .not-you {
+  font-size: 0.9rem;
+}
+
+.contact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin: 0.75rem 0;
+}
+
+.contact-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.55rem 1rem;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: bold;
+  text-decoration: none;
+  color: #fff;
+}
+
+.contact-btn-call  { background: var(--color-primary); }
+.contact-btn-text  { background: var(--color-accent); color: var(--color-text); }
+.contact-btn-email { background: var(--color-primary-dark); }
+
+.contact-btn:hover { opacity: 0.9; }
+
+.attendance-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.attendance-table th, .attendance-table td {
+  border: 1px solid var(--color-border);
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.attendance-status {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: bold;
+  color: #241c15;
+}
+
+.attendance-status.color-green  { background: #cdeccb; }
+.attendance-status.color-yellow { background: var(--color-pinned-bg); }
+.attendance-status.color-gray   { background: #e2ddd3; }
+
 footer.site-footer {
   text-align: center;
   padding: 1.5rem 1rem;

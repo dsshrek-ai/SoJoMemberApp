@@ -17,6 +17,7 @@
     <a href="volunteer.html">Volunteer</a>
     <a href="songs.html">Songs</a>
     <a href="absent.html">Report Absence</a>
+    <a href="myinfo.html">My Info</a>
     <a href="recognition.html">Recognition</a>
     <a href="sponsors.html">Sponsors &amp; Giving</a>
     <a href="join.html">Join Us</a>
@@ -43,7 +44,10 @@
           <span class="badge">${r.Type || 'Event'}</span>
           <h3>${r.Title || ''}</h3>
           <p><strong>${r.Date || ''}</strong> ${r.Time ? 'at ' + r.Time : ''}</p>
-          ${r.Location ? `<p>Location: ${r.Location}</p>` : ''}
+          ${r.Location ? `<p>Location: ${r.Location}
+            <a class="btn" style="font-size:0.85rem;padding:0.35rem 0.75rem;margin-left:0.5rem"
+               href="https://maps.google.com/?q=${encodeURIComponent(r.Location)}"
+               target="_blank" rel="noopener">View Map</a></p>` : ''}
           ${r.ParkingNotes ? `<p>Parking: ${r.ParkingNotes}</p>` : ''}
           ${r.EntranceNotes ? `<p>Entrance: ${r.EntranceNotes}</p>` : ''}
           ${r.Notes ? formatText(r.Notes) : ''}

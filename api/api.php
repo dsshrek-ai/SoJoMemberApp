@@ -113,11 +113,11 @@ $DATA_TABLES = [
   ]],
   'VolunteerSignups' => ['table' => 'choir_volunteer_signups', 'columns' => [
     'Date' => 'entry_date', 'TaskName' => 'task_name', 'VolunteerName' => 'volunteer_name',
-    'PhoneNumber' => 'phone_number', 'Timestamp' => 'signed_up_at',
+    'PhoneNumber' => 'phone_number', 'Email' => 'email', 'Timestamp' => 'signed_up_at',
   ]],
   'Absences' => ['table' => 'choir_absences', 'columns' => [
     'Date' => 'entry_date', 'MemberName' => 'member_name', 'Position' => 'position',
-    'Note' => 'note', 'Timestamp' => 'reported_at',
+    'Email' => 'email', 'PhoneNumber' => 'phone_number', 'Note' => 'note', 'Timestamp' => 'reported_at',
   ]],
   'Recognition' => ['table' => 'choir_recognition', 'columns' => [
     'Date' => 'entry_date', 'MemberName' => 'member_name', 'Message' => 'message',
@@ -130,6 +130,7 @@ $DATA_TABLES = [
   ]],
   'SectionLeaders' => ['table' => 'choir_section_leaders', 'columns' => [
     'Position' => 'position', 'LeaderName' => 'leader_name', 'LeaderEmail' => 'leader_email',
+    'LeaderPhone' => 'leader_phone',
   ]],
 ];
 
@@ -276,6 +277,7 @@ function claimSlot(array $body): array {
   $taskName = (string)($body['taskName'] ?? '');
   $volunteerName = trim((string)($body['volunteerName'] ?? ''));
   $phoneNumber = trim((string)($body['phoneNumber'] ?? ''));
+  $email = trim((string)($body['email'] ?? ''));
 
   $conn = db();
   $gotLock = $conn->query("SELECT GET_LOCK('choir_claim_slot', 10) AS got")->fetch_assoc();
@@ -294,10 +296,10 @@ function claimSlot(array $body): array {
       return ['ok' => false, 'reason' => 'full'];
     }
     $stmt = $conn->prepare(
-      'INSERT INTO choir_volunteer_signups (entry_date, task_name, volunteer_name, phone_number, signed_up_at)
-       VALUES (?, ?, ?, ?, NOW())'
+      'INSERT INTO choir_volunteer_signups (entry_date, task_name, volunteer_name, phone_number, email, signed_up_at)
+       VALUES (?, ?, ?, ?, ?, NOW())'
     );
-    $stmt->bind_param('ssss', $date, $taskName, $volunteerName, $phoneNumber);
+    $stmt->bind_param('sssss', $date, $taskName, $volunteerName, $phoneNumber, $email);
     $stmt->execute();
     $stmt->close();
     return ['ok' => true];
@@ -313,22 +315,24 @@ function markAbsent(array $body): array {
   $date = (string)($body['date'] ?? '');
   $memberName = trim((string)($body['memberName'] ?? ''));
   $position = trim((string)($body['position'] ?? ''));
+  $email = trim((string)($body['email'] ?? ''));
+  $phoneNumber = trim((string)($body['phoneNumber'] ?? ''));
   $note = trim((string)($body['note'] ?? ''));
 
   $stmt = db()->prepare(
-    'INSERT INTO choir_absences (entry_date, member_name, position, note, reported_at)
-     VALUES (?, ?, ?, ?, NOW())'
+    'INSERT INTO choir_absences (entry_date, member_name, position, email, phone_number, note, reported_at)
+     VALUES (?, ?, ?, ?, ?, ?, NOW())'
   );
-  $stmt->bind_param('ssss', $date, $memberName, $position, $note);
+  $stmt->bind_param('ssssss', $date, $memberName, $position, $email, $phoneNumber, $note);
   $stmt->execute();
   $stmt->close();
 
-  sendAbsenceEmail($memberName, $date, $position, $note);
+  sendAbsenceEmail($memberName, $date, $position, $email, $phoneNumber, $note);
 
   return ['ok' => true];
 }
 
-function sendAbsenceEmail(string $memberName, string $date, string $position, string $note): void {
+function sendAbsenceEmail(string $memberName, string $date, string $position, string $memberEmail, string $memberPhone, string $note): void {
   $leaderEmail = null;
   if ($position !== '') {
     $stmt = db()->prepare('SELECT leader_email FROM choir_section_leaders WHERE position = ?');
@@ -350,12 +354,139 @@ function sendAbsenceEmail(string $memberName, string $date, string $position, st
   $subject = 'Absence reported: ' . $memberName;
   $body = $memberName . " reported they can't make it on " . $date .
     ($position ? ' (' . $position . ')' : '') .
+    ($memberEmail ? "\nEmail: " . $memberEmail : '') .
+    ($memberPhone ? "\nPhone: " . $memberPhone : '') .
     ($note ? "\n\nNote: " . $note : '');
   $headers = 'From: ' . FROM_EMAIL . "\r\n" . 'Reply-To: ' . FROM_EMAIL . "\r\n";
   // Without -f, cPanel/Exim ignores the From: header for the SMTP envelope
   // sender and substitutes the hosting account's own identity instead —
   // that's what was showing up as the "from" address in recipients' inboxes.
   @mail($leaderEmail, $subject, $body, $headers, '-f' . FROM_EMAIL);
+}
+
+// ---- SOJO roster lookups (reads the same Google Sheet sojo-app maintains,
+// via its Apps Script Web App -- see APPS_SCRIPT_URL in config.php) ----
+//
+// Only read actions (getSingers/getConfig) are called; both are open on the
+// Apps Script side (no PIN), unlike sojo-app's own writes. To keep the same
+// privacy boundary sojo-app's PHP proxy enforces for its logged-in users
+// (never hand the full roster to a browser), every public action below
+// fetches the whole roster server-side and returns only the ONE matching
+// member's minimal fields -- never the raw roster, never this URL.
+
+function fetchAppsScript(string $action, array $params = []): array {
+  if (!defined('APPS_SCRIPT_URL') || APPS_SCRIPT_URL === '') {
+    fail('The SOJO roster isn\'t configured yet', 502);
+  }
+  $query = http_build_query(array_merge(['action' => $action], $params));
+  $ch = curl_init(APPS_SCRIPT_URL . '?' . $query);
+  curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_FOLLOWLOCATION => true,
+    CURLOPT_TIMEOUT => 20,
+  ]);
+  $raw = curl_exec($ch);
+  if ($raw === false) {
+    $err = curl_error($ch);
+    curl_close($ch);
+    fail('Could not reach the SOJO roster: ' . $err, 502);
+  }
+  curl_close($ch);
+  $decoded = json_decode($raw, true);
+  if (!is_array($decoded)) {
+    fail('Unexpected response from the SOJO roster', 502);
+  }
+  return $decoded;
+}
+
+function findSingerByEmail(string $email): ?array {
+  if ($email === '') {
+    return null;
+  }
+  $target = mb_strtolower($email);
+  $data = fetchAppsScript('getSingers');
+  foreach (($data['singers'] ?? []) as $singer) {
+    if (mb_strtolower(trim((string)($singer['email'] ?? ''))) === $target) {
+      return $singer;
+    }
+  }
+  return null;
+}
+
+// The minimal fields volunteer.html/absent.html/myinfo.html need to identify
+// and contact a member -- deliberately not the raw singer object (no
+// address, notes, pic, etc).
+function memberSummary(array $singer): array {
+  $firstname = trim((string)($singer['firstname'] ?? ''));
+  $lastname = trim((string)($singer['lastname'] ?? ''));
+  $name = ($firstname !== '' || $lastname !== '')
+    ? trim($firstname . ' ' . $lastname)
+    : (string)($singer['combined'] ?? '');
+  return [
+    'name' => $name,
+    'email' => (string)($singer['email'] ?? ''),
+    'cellPhone' => (string)($singer['cellPhone'] ?? ''),
+    'homePhone' => (string)($singer['homePhone'] ?? ''),
+    'position' => (string)($singer['position'] ?? ''),
+    'section' => (string)($singer['section'] ?? ''),
+  ];
+}
+
+// Most-recent-first list of { date, code, label, color } built from the
+// singer's own attendance{} (keyed by sheet column index) plus getConfig()'s
+// ordered date/attendanceCode reference data.
+function buildAttendanceList(array $singer): array {
+  $config = fetchAppsScript('getConfig');
+  $codes = [];
+  foreach (($config['attendanceCodes'] ?? []) as $c) {
+    $codes[(string)($c['code'] ?? '')] = $c;
+  }
+  $attendance = $singer['attendance'] ?? [];
+  $out = [];
+  foreach (($config['dates'] ?? []) as $d) {
+    $code = (string)($attendance[(string)($d['col'] ?? '')] ?? '');
+    $info = $codes[$code] ?? ['label' => 'Unknown', 'color' => 'gray'];
+    $out[] = [
+      'date' => (string)($d['label'] ?? ''),
+      'code' => $code,
+      'label' => (string)($info['label'] ?? ''),
+      'color' => (string)($info['color'] ?? 'gray'),
+    ];
+  }
+  return array_reverse($out);
+}
+
+// Same fallback-to-director logic as sendAbsenceEmail, but for display
+// rather than a notification: no leader row (or an empty one) on file falls
+// back to Settings.DirectorEmail with the name "Director" -- there's no
+// director phone number setting, so that field stays blank in that case.
+function getSectionLeaderContact(string $position): array {
+  $leaderName = null;
+  $leaderEmail = null;
+  $leaderPhone = null;
+
+  if ($position !== '') {
+    $stmt = db()->prepare('SELECT leader_name, leader_email, leader_phone FROM choir_section_leaders WHERE position = ?');
+    $stmt->bind_param('s', $position);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if ($row) {
+      $leaderName = trim((string)$row['leader_name']) !== '' ? trim($row['leader_name']) : null;
+      $leaderEmail = trim((string)$row['leader_email']) !== '' ? trim($row['leader_email']) : null;
+      $leaderPhone = trim((string)($row['leader_phone'] ?? '')) !== '' ? trim($row['leader_phone']) : null;
+    }
+  }
+
+  if (!$leaderEmail && !$leaderPhone) {
+    $directorEmail = getSetting('DirectorEmail');
+    if ($directorEmail) {
+      $leaderName = $leaderName ?: 'Director';
+      $leaderEmail = $directorEmail;
+    }
+  }
+
+  return ['name' => $leaderName, 'email' => $leaderEmail, 'phone' => $leaderPhone];
 }
 
 // ---- Router ----
@@ -389,6 +520,37 @@ switch ($action) {
 
   case 'volunteerStatus':
     respond(getVolunteerStatus());
+
+  // -- Public SOJO roster lookups (GET, no auth — see the section above) --
+
+  case 'lookupMember': {
+    $email = trim((string)($_GET['email'] ?? ''));
+    if ($email === '') {
+      respond(['ok' => false, 'reason' => 'invalid']);
+    }
+    $singer = findSingerByEmail($email);
+    if (!$singer) {
+      respond(['ok' => false, 'reason' => 'not-found']);
+    }
+    respond(['ok' => true, 'member' => memberSummary($singer)]);
+  }
+
+  case 'myAttendance': {
+    $email = trim((string)($_GET['email'] ?? ''));
+    if ($email === '') {
+      respond(['ok' => false, 'reason' => 'invalid']);
+    }
+    $singer = findSingerByEmail($email);
+    if (!$singer) {
+      respond(['ok' => false, 'reason' => 'not-found']);
+    }
+    respond(['ok' => true, 'member' => memberSummary($singer), 'attendance' => buildAttendanceList($singer)]);
+  }
+
+  case 'sectionLeader': {
+    $position = trim((string)($_GET['position'] ?? ''));
+    respond(['ok' => true, 'leader' => getSectionLeaderContact($position)]);
+  }
 
   // -- Public writes (POST, no auth — matches the old no-login behavior) --
 

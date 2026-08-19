@@ -105,12 +105,12 @@
     Songs: ['Title', 'RehearsalTrackURL', 'YouTubeURL', 'LastRehearsedDate', 'Status'],
     Announcements: ['Date', 'Author', 'Message', 'Pinned'],
     VolunteerTasks: ['Date', 'TaskName', 'SlotsNeeded'],
-    VolunteerSignups: ['Date', 'TaskName', 'VolunteerName', 'PhoneNumber', 'Timestamp'],
-    Absences: ['Date', 'MemberName', 'Position', 'Note', 'Timestamp'],
+    VolunteerSignups: ['Date', 'TaskName', 'VolunteerName', 'PhoneNumber', 'Email', 'Timestamp'],
+    Absences: ['Date', 'MemberName', 'Position', 'Email', 'PhoneNumber', 'Note', 'Timestamp'],
     Recognition: ['Date', 'MemberName', 'Message'],
     Sponsors: ['SponsorName', 'LogoURL', 'Message', 'Tier'],
     Settings: ['Key', 'Value'],
-    SectionLeaders: ['Position', 'LeaderName', 'LeaderEmail'],
+    SectionLeaders: ['Position', 'LeaderName', 'LeaderEmail', 'LeaderPhone'],
   };
   const LONG_TEXT_COLUMNS = new Set(['Message', 'Notes', 'Note', 'Value']);
   const DATE_COLUMNS = new Set(['Date', 'LastRehearsedDate']);

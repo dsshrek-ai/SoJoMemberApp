@@ -15,3 +15,10 @@ define('SESSION_LIFETIME_DAYS', 30);
 // mail() is more likely to get flagged as spam if the From: domain doesn't
 // match the sending server.
 define('FROM_EMAIL', 'noreply@seniorfamily.org');
+
+// The SOJO Directory roster's Google Apps Script Web App -- same URL as
+// sojo-app's own api/config.php APPS_SCRIPT_URL. Used to look a member up by
+// email (name/phone/position/attendance) for volunteer.html, absent.html,
+// and myinfo.html. Only read actions (getSingers/getConfig) are called, so
+// unlike sojo-app's config.php, no ADMIN_PIN is needed here.
+define('APPS_SCRIPT_URL', 'PASTE_THE_SAME_APPS_SCRIPT_WEB_APP_URL_SOJO_APP_USES');

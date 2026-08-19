@@ -85,6 +85,24 @@ CREATE TABLE IF NOT EXISTS choir_absences (
   reported_at  DATETIME NULL
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- ---------- SCHEMA CHANGE: email-based member identification ----------
+-- Run once. volunteer.html and absent.html now look the member up by email
+-- against the SOJO roster app's Google Sheet (via its Apps Script Web App --
+-- see APPS_SCRIPT_URL in config.php) to auto-fill name/phone/position, and
+-- record the email alongside whatever was actually submitted (the member can
+-- still edit the auto-filled fields, so what's stored here isn't guaranteed
+-- to equal the roster's own values). Absences didn't collect a phone number
+-- at all before this -- added here as its own column, same as signups.
+
+ALTER TABLE choir_volunteer_signups ADD COLUMN email VARCHAR(255) NULL AFTER phone_number;
+ALTER TABLE choir_absences          ADD COLUMN email VARCHAR(255) NULL AFTER position;
+ALTER TABLE choir_absences          ADD COLUMN phone_number VARCHAR(30) NULL AFTER email;
+
+-- Section leader's phone, for the new tap-to-call/text button on the My Info
+-- page (mirrors sojo-app's Call/Text/Email buttons on a singer's own contact
+-- info). Nullable -- populate via admin.html same as leader_name/leader_email.
+ALTER TABLE choir_section_leaders ADD COLUMN leader_phone VARCHAR(20) NULL AFTER leader_email;
+
 CREATE TABLE IF NOT EXISTS choir_recognition (
   id           INT AUTO_INCREMENT PRIMARY KEY,
   entry_date   DATE NULL,

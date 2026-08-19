@@ -17,6 +17,7 @@
     <a href="volunteer.html">Volunteer</a>
     <a href="songs.html">Songs</a>
     <a href="absent.html" aria-current="page">Report Absence</a>
+    <a href="myinfo.html">My Info</a>
     <a href="recognition.html">Recognition</a>
     <a href="sponsors.html">Sponsors &amp; Giving</a>
     <a href="join.html">Join Us</a>
@@ -26,9 +27,20 @@
 <main id="main-content">
   <h2>Can't Make It?</h2>
   <div id="status" class="placeholder-note" style="display:none;"></div>
+
+  <div class="card member-lookup">
+    <label for="lookup-email">Your Email</label>
+    <input type="email" id="lookup-email" placeholder="you@example.com">
+    <p><button type="button" class="btn" id="lookup-btn">Look Up</button></p>
+    <div id="lookup-status"></div>
+  </div>
+
   <form id="absence-form" class="card">
     <label for="name">Your Name</label>
     <input type="text" id="name" required>
+
+    <label for="phone">Your Phone</label>
+    <input type="tel" id="phone">
 
     <label for="position">Your Section/Position</label>
     <select id="position" required>
@@ -62,22 +74,85 @@
     statusEl.style.display = '';
   }
 
+  const lookupEmailInput = document.getElementById('lookup-email');
+  const lookupBtn = document.getElementById('lookup-btn');
+  const lookupStatusEl = document.getElementById('lookup-status');
+  const nameInput = document.getElementById('name');
+  const phoneInput = document.getElementById('phone');
+  const positionSelect = document.getElementById('position');
+
+  let currentMember = null;
+
+  async function runLookup() {
+    const email = lookupEmailInput.value.trim();
+    lookupStatusEl.innerHTML = '';
+    if (!email) return;
+    lookupBtn.disabled = true;
+    try {
+      const result = await lookupMember(email);
+      if (result.ok) {
+        currentMember = { ...result.member, email };
+        saveEmail(email);
+        // Pre-fill, not lock — a wrong or outdated Position on the sheet
+        // shouldn't stop someone from reporting an absence; see the note
+        // about contacting your section leader on the My Info page.
+        nameInput.value = currentMember.name || '';
+        phoneInput.value = currentMember.cellPhone || currentMember.homePhone || '';
+        if (currentMember.position && [...positionSelect.options].some(o => o.value === currentMember.position)) {
+          positionSelect.value = currentMember.position;
+        }
+        lookupStatusEl.innerHTML = `<p class="found-note">Hi, <strong>${escapeHtml(currentMember.name || email)}</strong>! We've filled in what we have on file — check it over below. <a class="not-you" id="not-you-link">Not you?</a></p>`;
+        document.getElementById('not-you-link').addEventListener('click', () => {
+          currentMember = null;
+          clearSavedEmail();
+          lookupEmailInput.value = '';
+          lookupStatusEl.innerHTML = '';
+        });
+      } else {
+        currentMember = null;
+        lookupStatusEl.innerHTML = `<p class="placeholder-note">${escapeHtml(notFoundMessage(email))}</p>`;
+      }
+    } catch (e) {
+      lookupStatusEl.innerHTML = `<p class="placeholder-note">Couldn't look that up right now — you can still fill in the form below by hand.</p>`;
+    }
+    lookupBtn.disabled = false;
+  }
+
+  lookupBtn.addEventListener('click', runLookup);
+  lookupEmailInput.addEventListener('keydown', e => { if (e.key === 'Enter') runLookup(); });
+
+  const savedEmail = getSavedEmail();
+  if (savedEmail) {
+    lookupEmailInput.value = savedEmail;
+    runLookup();
+  }
+
   document.getElementById('absence-form').addEventListener('submit', async (ev) => {
     ev.preventDefault();
-    const name = document.getElementById('name').value.trim();
-    const position = document.getElementById('position').value;
+    const name = nameInput.value.trim();
+    const phone = phoneInput.value.trim();
+    const position = positionSelect.value;
     const date = document.getElementById('date').value;
     const note = document.getElementById('note').value.trim();
+    const email = (currentMember && currentMember.email) || lookupEmailInput.value.trim();
     if (!name || !position || !date) return;
 
     const submitBtn = ev.target.querySelector('button[type="submit"]');
     submitBtn.disabled = true;
     submitBtn.textContent = 'Submitting…';
     try {
-      const result = await postAction('markAbsent', { date, memberName: name, position, note });
+      const result = await postAction('markAbsent', { date, memberName: name, position, email, phoneNumber: phone, note });
       if (result.ok) {
         showStatus(`Thanks, ${name} — we've noted you'll be out on ${date}.`);
         ev.target.reset();
+        if (currentMember) {
+          nameInput.value = currentMember.name || '';
+          phoneInput.value = currentMember.cellPhone || currentMember.homePhone || '';
+          lookupEmailInput.value = currentMember.email || '';
+          if (currentMember.position && [...positionSelect.options].some(o => o.value === currentMember.position)) {
+            positionSelect.value = currentMember.position;
+          }
+        }
       } else {
         showStatus('Something went wrong submitting that. Please try again.');
       }

@@ -46,11 +46,14 @@ are on file for that task. Tap it to copy the full list to your clipboard, then 
 the "To:" field of a new message in your phone's texting app. (Phones/carriers don't reliably
 support pre-filling multiple recipients from a link, so copy-and-paste is the dependable way.)
 
-**Set up who gets emailed about absences**
+**Set up who gets emailed about absences (and shown as a member's section leader)**
 → Table: `SectionLeaders`. One row per Position (e.g. "Soprano - 1st") with that section's
-leader's name and email. When someone reports an absence, whoever's listed for their Position
-gets the email — not one shared inbox. A Position with no row (or a blank email) falls back to
-`Settings.DirectorEmail` if you've set one.
+leader's name, email, and phone (LeaderPhone). When someone reports an absence, whoever's listed
+for their Position gets the email — not one shared inbox. The same row also powers the "call,
+text, or email your section leader" card members see on the My Info page — leave LeaderPhone
+blank if that leader would rather only be reached by email. A Position with no row (or a blank
+email/phone) falls back to `Settings.DirectorEmail` for both the absence email and the My Info
+contact card, showing "Director" instead of a leader's name.
 
 **Recognize a member (birthday, milestone, shout-out)**
 → Table: `Recognition`. Add a Date, the MemberName, and a short Message.
@@ -105,6 +108,24 @@ just show up as plain text exactly as typed.
 There's no shared password anymore — access is per-person, through My Apps Hub's admin tool
 (same place you'd manage access to any other app there). Grant or remove someone's "Choir Admin
 Panel" access there; they need their own account (sign up through the Hub) but nothing else.
+
+## The "My Info" page and email lookup
+
+The Volunteer, Report Absence, and My Info pages all now start by asking for the member's email.
+If it matches someone in the SOJO Directory roster (the Google Sheet the section-leader app
+reads), their name/phone/section fill in automatically — they can still change any of it, this
+is just a shortcut, not a lock. If the email doesn't match anyone, they'll see a message saying
+so, but the form still works by hand, exactly like before this existed.
+
+My Info specifically shows a member their own attendance history and section leader's contact
+card (with Call/Text/Email buttons) once they've looked themselves up, plus a note pointing them
+to their section leader if anything about their attendance or contact info needs fixing — nothing
+for you to maintain here beyond keeping `SectionLeaders` current, above.
+
+This lookup depends on the SOJO Directory app's Google Sheet staying reachable — if that sheet or
+its underlying Apps Script ever moves, whoever manages `api/config.php` (`APPS_SCRIPT_URL`) needs
+to update it here too, or the auto-fill/attendance features will stop working (the rest of the
+site is unaffected either way).
 
 ## A few things to know
 

@@ -6,6 +6,11 @@ volunteer signup, absence reporting, etc.) stay exactly as open as they've alway
 login. Only the **admin panel** (`admin.html`) requires logging in now, using the same account
 as every other MyDataWorld app.
 
+One exception to "no login": volunteer.html, absent.html, and myinfo.html now ask for your email
+so they can look you up by name/phone/position/attendance against the SOJO Directory roster (the
+Google Sheet behind the sojo-app repo) — not a real login, just an identity lookup, and every
+field it fills in stays editable. See "7. Point the API at the SOJO roster" below.
+
 ## 1. Update the database
 
 Open **phpMyAdmin**, select the MyDataWorld database, go to the **SQL** tab, and run everything
@@ -48,20 +53,42 @@ Push this repo (GitHub Pages) or upload the files directly to seniorfamily.org �
 There's no more `AdminPassword` — anyone with an `app_access` grant for `choir-admin-panel` can
 get in, and anyone without one can't, regardless of what they know.
 
-## 6. Section leaders (for absence-report emails)
+## 6. Section leaders (for absence-report emails, and the My Info contact card)
 
 When a member reports an absence, the app emails whoever's listed for their Position — not a
-single director inbox. Set this up once you're in the admin panel:
+single director inbox. The same table also drives the "tap to call/text/email your section
+leader" card on `myinfo.html`. Set this up once you're in the admin panel:
 
 1. Open `admin.html`, pick the **SectionLeaders** table.
 2. Add one row per Position (Soprano - 1st, Soprano - 2nd, Alto - 1st, Alto - 2nd, Tenor - 1st,
-   Tenor - 2nd, Bass - 1st, Bass - 2nd, HOLD) with that section's leader's name and email.
-3. If a Position has no row (or an empty LeaderEmail), the email falls back to
-   `Settings.DirectorEmail` if you've set one; if neither exists, the absence is still recorded,
-   it just doesn't email anyone.
+   Tenor - 2nd, Bass - 1st, Bass - 2nd, HOLD) with that section's leader's name, email, **and
+   phone** (LeaderPhone — new column, used for the Call/Text buttons; leave it blank if you'd
+   rather that leader only be reachable by email).
+3. If a Position has no row (or an empty LeaderEmail/LeaderPhone), the absence-notification email
+   falls back to `Settings.DirectorEmail` if you've set one, and the My Info contact card does the
+   same (showing "Director" with an Email button, no Call/Text since there's no director-phone
+   setting); if neither exists, the absence is still recorded and the contact card just doesn't
+   appear.
 
-Position values match the SOJO roster app's list, but the two apps don't share data — this is
-its own small table, maintained here.
+Position values match the SOJO roster app's list, but `choir_section_leaders` itself doesn't share
+data with that app — it's its own small table, maintained here. (The roster *lookup* in step 7
+below is the one place this app does read sojo-app's data, live.)
+
+## 7. Point the API at the SOJO roster
+
+`volunteer.html`, `absent.html`, and `myinfo.html` look a member up by email against the same
+Google Sheet sojo-app reads, via that Sheet's Apps Script Web App — not a copy, the live sheet.
+
+1. Open sojo-app's own `api/config.php` and copy its `APPS_SCRIPT_URL` value.
+2. Paste that same URL into this app's `api/config.php` as `APPS_SCRIPT_URL`.
+3. That's it — no `ADMIN_PIN` needed here, since this app only ever reads (`getSingers`/
+   `getConfig`), never writes to the sheet. If you ever redeploy the Apps Script Web App and its
+   URL changes, update it in both apps' `config.php` files.
+
+If this isn't set (or the Apps Script is unreachable), the email-lookup step in each page fails
+gracefully — members can still fill in Name/Phone/Position by hand exactly like before this
+feature existed, they just don't get auto-filled or see the "not found in the SoJo Roster"
+message.
 
 ## Data migration (Google Sheets → MyDataWorld)
 

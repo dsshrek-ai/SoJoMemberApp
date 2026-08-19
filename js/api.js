@@ -99,3 +99,66 @@ async function copyToClipboard(text, button, onFallback) {
   }
   setTimeout(() => { button.textContent = original; }, 1500);
 }
+
+// ---- SOJO roster lookups (email -> name/phone/position/attendance, looked
+// up against the same Google Sheet sojo-app maintains) ----
+
+const MEMBER_EMAIL_KEY = 'choirMemberEmail';
+function getSavedEmail() { return localStorage.getItem(MEMBER_EMAIL_KEY) || ''; }
+function saveEmail(email) { localStorage.setItem(MEMBER_EMAIL_KEY, email); }
+function clearSavedEmail() { localStorage.removeItem(MEMBER_EMAIL_KEY); }
+
+// Exact wording requested for an email that isn't on the roster.
+function notFoundMessage(email) {
+  return `${email} not found in the SoJo Roster.`;
+}
+
+// { ok: true, member: {name, email, cellPhone, homePhone, position, section} }
+// or { ok: false, reason: 'not-found' | 'invalid' }
+async function lookupMember(email) {
+  if (!isConfigured()) throw new Error('not-configured');
+  const url = `${CONFIG.API_URL}?action=lookupMember&email=${encodeURIComponent(email)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+  return res.json();
+}
+
+// { ok: true, member: {...}, attendance: [{date, code, label, color}, ...] }
+// (most recent first) or { ok: false, reason: ... } — same as lookupMember.
+async function lookupMyAttendance(email) {
+  if (!isConfigured()) throw new Error('not-configured');
+  const url = `${CONFIG.API_URL}?action=myAttendance&email=${encodeURIComponent(email)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+  return res.json();
+}
+
+// { ok: true, leader: {name, email, phone} } — any of the three may be null
+// (no section leader on file for that position, and no DirectorEmail set
+// either, or a phone number simply isn't on file for whoever's found).
+async function lookupSectionLeader(position) {
+  if (!isConfigured()) throw new Error('not-configured');
+  const url = `${CONFIG.API_URL}?action=sectionLeader&position=${encodeURIComponent(position)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+  return res.json();
+}
+
+// Renders Call/Text/Email tap buttons for a phone/email pair, matching
+// sojo-app's contact-btn pattern. Omits whichever action has no target
+// (e.g. no buttons at all if both phone and email are blank).
+function contactButtonsHtml(phone, email) {
+  const cleanPhone = String(phone ?? '').trim();
+  const cleanEmail = String(email ?? '').trim();
+  if (!cleanPhone && !cleanEmail) return '';
+  const parts = [];
+  if (cleanPhone) {
+    const tel = encodeURIComponent(cleanPhone);
+    parts.push(`<a class="contact-btn contact-btn-call" href="tel:${tel}">Call</a>`);
+    parts.push(`<a class="contact-btn contact-btn-text" href="sms:${tel}">Text</a>`);
+  }
+  if (cleanEmail) {
+    parts.push(`<a class="contact-btn contact-btn-email" href="mailto:${encodeURIComponent(cleanEmail)}">Email</a>`);
+  }
+  return `<div class="contact-actions">${parts.join('')}</div>`;
+}

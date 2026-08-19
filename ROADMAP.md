@@ -21,12 +21,12 @@ version. See `api/schema.sql` for the current table layout and `SETUP.md` for de
 | `Songs` | Title, RehearsalTrackURL, YouTubeURL, LastRehearsedDate, Status |
 | `Announcements` | Date, Author, Message, Pinned |
 | `VolunteerTasks` | Date, TaskName, SlotsNeeded |
-| `VolunteerSignups` | Date, TaskName, VolunteerName, PhoneNumber, Timestamp |
-| `Absences` | Date, MemberName, Position, Note, Timestamp |
+| `VolunteerSignups` | Date, TaskName, VolunteerName, PhoneNumber, Email, Timestamp |
+| `Absences` | Date, MemberName, Position, Email, PhoneNumber, Note, Timestamp |
 | `Recognition` | Date, MemberName, Message |
 | `Sponsors` | SponsorName, LogoURL, Message, Tier |
 | `Settings` | Key, Value |
-| `SectionLeaders` | Position, LeaderName, LeaderEmail |
+| `SectionLeaders` | Position, LeaderName, LeaderEmail, LeaderPhone |
 
 `MusicFolders` was an app feature in an earlier phase — it was unwired entirely (no page, no
 admin table, no API action) per the user's request, and doesn't exist in the MySQL schema at
@@ -38,10 +38,17 @@ table entry, no API action — though `choir_lyrics` is left in place in MySQL, 
 
 Public (no auth, used by member-facing pages) — same contract as the old Apps Script version:
 - `GET ?action=schedule|songs|lyrics|announcements|volunteerStatus|recognition|sponsors|settings`
-- `POST {action: "claimSlot", date, taskName, volunteerName, phoneNumber}` — guarded by a MySQL
-  named lock (`GET_LOCK`), same role `LockService` played before.
-- `POST {action: "markAbsent", date, memberName, position, note}` — emails the `SectionLeaders`
-  row for `position`, falling back to `Settings.DirectorEmail` if unset.
+- `POST {action: "claimSlot", date, taskName, volunteerName, phoneNumber, email}` — guarded by a
+  MySQL named lock (`GET_LOCK`), same role `LockService` played before.
+- `POST {action: "markAbsent", date, memberName, position, email, phoneNumber, note}` — emails
+  the `SectionLeaders` row for `position`, falling back to `Settings.DirectorEmail` if unset.
+- `GET ?action=lookupMember&email=...` → `{ok, member: {name, email, cellPhone, homePhone,
+  position, section}}` or `{ok:false, reason:'not-found'|'invalid'}` — see "SOJO roster lookup"
+  below.
+- `GET ?action=myAttendance&email=...` → same as `lookupMember` plus `attendance: [{date, code,
+  label, color}, ...]` (most recent first).
+- `GET ?action=sectionLeader&position=...` → `{ok, leader: {name, email, phone}}` (any field may
+  be `null`).
 
 Admin (all POST, require `Authorization: Bearer <MyDataWorld session token>` +
 `app_access` for `choir-admin-panel`, checked in `requireUser`/`requireChoirAdminAccess`):
@@ -168,3 +175,51 @@ replaying prior conversations.
     save/delete-by-`_row` logic needed no changes.
   - Data migration (existing Sheet content) is a manual one-time CSV export/import per tab —
     see `SETUP.md`.
+- **SOJO roster lookup (email → name/phone/position/attendance) + section-leader contact**: this
+  app has no roster of its own — it only ever had `MemberName`/free-text position entries typed
+  fresh each time. `volunteer.html` and `absent.html` now ask for the member's email first and
+  call a new `lookupMember` action to pre-fill Name/Phone (and Position, on `absent.html`) — all
+  three fields stay editable afterward, this is autofill, not a lock. The email itself is saved
+  in `localStorage` (`choirMemberEmail` — see `getSavedEmail`/`saveEmail`/`clearSavedEmail` in
+  `js/api.js`) so returning members aren't retyping it on every visit, with a visible "Not you?"
+  link to clear it. An email that doesn't match anyone shows the exact required copy: "*x@y.com*
+  not found in the SoJo Roster." but never blocks the form — manual entry still works exactly
+  like before this feature existed.
+  - The roster itself lives entirely in the Google Sheet behind the **sojo-app** repo (this app
+    never got its own copy) — `api/api.php` calls that Sheet's Apps Script Web App directly,
+    server-side, via a new `APPS_SCRIPT_URL` constant in `config.php` (same URL sojo-app's own
+    `config.php` already points at). Only the two unauthenticated `GET` actions
+    (`getSingers`/`getConfig`) are used — this app never writes to that sheet, so unlike
+    sojo-app's `config.php` it needs no `ADMIN_PIN`.
+  - **Privacy boundary, deliberately preserved**: sojo-app's own PHP (`api/api.php` there) gates
+    every roster read behind a real MyDataWorld login + `app_access` grant, even though the
+    underlying Apps Script `doGet` has no check of its own — that login gate is the only thing
+    stopping the full roster (every member's name/phone/address) from being fetched by anyone who
+    knows the Apps Script URL. This app's member-facing pages are intentionally anonymous, so it
+    can't reuse that same login gate — instead, `lookupMember`/`myAttendance`/`sectionLeader`
+    fetch the *whole* roster server-side (in PHP, never sent to the browser) and hand back only
+    the one matching member's minimal fields (name/email/phones/position/section, or that
+    member's own attendance) — never the full roster, and the Apps Script URL itself never
+    reaches client-side code. Keep this shape if this ever gets touched again: broaden what a
+    public action returns from the roster only with real justification, not by convenience.
+  - **New "My Info" page** (`myinfo.html`, in the nav on every page): same email lookup, then
+    shows the member's own details, a most-recent-first attendance table (built from
+    `getConfig()`'s `dates`/`attendanceCodes` plus the member's own `attendance{}` map — see
+    `buildAttendanceList()`), a note that changes to either go through your section leader, and
+    (via the new `sectionLeader` action) a contact card for that leader with **Call/Text/Email**
+    tap buttons — `contactButtonsHtml()` in `js/api.js`, mirroring sojo-app's own
+    `tel:`/`sms:`/`mailto:` pattern on a singer's contact info, restyled to this app's palette
+    (`.contact-btn`/`.contact-actions` in `style.css`).
+  - **`SectionLeaders` gained `LeaderPhone`**, editable via `admin.html` alongside
+    `LeaderName`/`LeaderEmail`, purely for those Call/Text buttons — the absence-notification
+    email still only ever uses `LeaderEmail`. If a Position has no leader row (or an empty one),
+    the contact card falls back to `Settings.DirectorEmail` labeled "Director" — same fallback
+    `sendAbsenceEmail()` already used, now shared by `getSectionLeaderContact()`.
+  - **`VolunteerSignups`/`Absences` gained `Email` columns** (and `Absences` also gained
+    `PhoneNumber`, which it never collected before this), storing whatever was actually submitted
+    — not necessarily the roster's own values, since the autofilled fields stay editable.
+  - **Schedule map button**: any `schedule.html` row with a non-blank `Location` gets a "View Map"
+    button linking to `https://maps.google.com/?q=<encoded Location>` — unconditional, since
+    `Location` is free text (a director might type "Church fellowship hall" as easily as a real
+    address) and there's no reverse-geocoding here to tell the difference; a non-address label
+    just yields an unhelpful map search rather than a broken link.
