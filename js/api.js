@@ -144,6 +144,31 @@ async function lookupSectionLeader(position) {
   return res.json();
 }
 
+// If arriving from My Apps Hub with ?token=... (SSO handoff), resolves it to
+// this member's MyDataWorld login email and remembers it the same way a
+// typed-and-looked-up email would be (saveEmail) -- so the existing "auto-run
+// the lookup if a saved email exists" logic on volunteer.html/absent.html/
+// myinfo.html picks it up with no extra code there. Always strips the token
+// out of the URL (whether or not it resolved), so it doesn't linger in the
+// address bar/history. Call and `await` this BEFORE checking getSavedEmail()
+// so a resolved token wins over whatever was previously saved.
+async function captureSsoEmail() {
+  const token = new URLSearchParams(window.location.search).get('token');
+  if (!token) return;
+  window.history.replaceState({}, document.title, window.location.pathname);
+  if (!isConfigured()) return;
+  try {
+    const res = await fetch(`${CONFIG.API_URL}?action=whoAmI&token=${encodeURIComponent(token)}`);
+    const data = await res.json();
+    if (data.ok && data.email) {
+      saveEmail(data.email);
+    }
+  } catch (e) {
+    // Best-effort -- a failed resolve just means no pre-fill, same as if
+    // there had never been a token at all.
+  }
+}
+
 // Renders Call/Text/Email tap buttons for a phone/email pair, matching
 // sojo-app's contact-btn pattern. Omits whichever action has no target
 // (e.g. no buttons at all if both phone and email are blank).

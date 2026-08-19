@@ -552,6 +552,32 @@ switch ($action) {
     respond(['ok' => true, 'leader' => getSectionLeaderContact($position)]);
   }
 
+  // Resolves a My Apps Hub SSO handoff token (?token=... on launch) to the
+  // logged-in member's email, so it can pre-fill the same lookup box a
+  // typed email would -- see captureSsoEmail() in js/api.js. Deliberately
+  // returns {ok:false} rather than a 401 for a missing/expired/invalid
+  // token: this is a best-effort convenience, not an auth gate, and a
+  // failure here should just fall through to "ask for the email" like
+  // always, not surface as an error.
+  case 'whoAmI': {
+    $token = trim((string)($_GET['token'] ?? ''));
+    if ($token === '') {
+      respond(['ok' => false]);
+    }
+    $stmt = db()->prepare(
+      'SELECT u.username FROM sessions s JOIN users u ON u.id = s.user_id
+       WHERE s.token = ? AND s.expires_at > NOW()'
+    );
+    $stmt->bind_param('s', $token);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$row) {
+      respond(['ok' => false]);
+    }
+    respond(['ok' => true, 'email' => $row['username']]);
+  }
+
   // -- Public writes (POST, no auth — matches the old no-login behavior) --
 
   case 'claimSlot':

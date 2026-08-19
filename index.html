@@ -31,6 +31,12 @@
 <footer class="site-footer">Choir App &mdash; built for our community</footer>
 <script src="js/api.js"></script>
 <script>
+  // My Apps Hub launches this app at index.html, so this is where a
+  // ?token=... SSO handoff actually arrives — captured here (silently, no
+  // lookup box on this page) so it's already remembered by the time the
+  // member clicks into Volunteer/Report Absence/My Info.
+  captureSsoEmail();
+
   (async () => {
     const el = document.getElementById('content');
     try {

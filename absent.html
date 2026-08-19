@@ -121,11 +121,14 @@
   lookupBtn.addEventListener('click', runLookup);
   lookupEmailInput.addEventListener('keydown', e => { if (e.key === 'Enter') runLookup(); });
 
-  const savedEmail = getSavedEmail();
-  if (savedEmail) {
-    lookupEmailInput.value = savedEmail;
-    runLookup();
-  }
+  (async () => {
+    await captureSsoEmail();
+    const savedEmail = getSavedEmail();
+    if (savedEmail) {
+      lookupEmailInput.value = savedEmail;
+      runLookup();
+    }
+  })();
 
   document.getElementById('absence-form').addEventListener('submit', async (ev) => {
     ev.preventDefault();
