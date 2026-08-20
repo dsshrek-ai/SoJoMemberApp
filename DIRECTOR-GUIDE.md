@@ -72,9 +72,34 @@ the site:
 - `InstructionsText` — shown on the Instructions page (last item in the site menu)
 - `DirectorEmail` — fallback email for absence reports when a Position has no one listed in
   `SectionLeaders` (see above)
+- `Countdown` — drives the **Countdown** page (first item in the site menu). See below for the
+  format.
 
 To change any of these, find that row in the `Settings` table and edit the Value box, then
 **Save**. Don't change the Key names — the site looks for them by that exact spelling.
+
+**Set up the countdown to an upcoming event**
+→ Table: `Settings`, row with Key `Countdown`. The Value must be exactly:
+
+```
+[Event][mm/dd/yy][HHMM]
+```
+
+- `Event` — whatever text you want shown, e.g. `SoJo Performance - Bingham`
+- Date — two-digit month/day/year, e.g. `08/20/26`
+- Time — 24-hour, no colon, always 4 digits, e.g. `1500` for 3:00 PM, `0800` for 8:00 AM
+
+So a performance on August 20, 2026 at 3:00 PM would be:
+
+```
+[SoJo Performance - Bingham][08/20/26][1500]
+```
+
+The Countdown page shows that event name with a live ticking countdown (days/hours/minutes/
+seconds) to that exact date and time. There's only ever **one** countdown — adding a new
+`Countdown` row's Value replaces whatever was there before, it doesn't add a second one. If the
+Value is missing or doesn't match that exact bracket format, the page just says no countdown has
+been set up yet, rather than showing something broken.
 
 **Invite someone to join the choir**
 → There's nothing to set up here beyond `NewMemberFormURL` above — on the Join Us page, any

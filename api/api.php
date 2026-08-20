@@ -149,7 +149,7 @@ $DATE_COLUMNS = ['Date', 'LastRehearsedDate'];
 // DirectorEmail. Allowlist, not blocklist, matching the old Code.gs behavior.
 $PUBLIC_SETTINGS_KEYS = [
   'WelcomeMessage', 'DonationURL', 'NewMemberFormURL', 'AuditionInfoText', 'AuditionFormURL',
-  'InstructionsText',
+  'InstructionsText', 'Countdown',
 ];
 
 function tableRowsWithId(string $sheetName): array {

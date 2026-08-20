@@ -223,3 +223,16 @@ replaying prior conversations.
     `Location` is free text (a director might type "Church fellowship hall" as easily as a real
     address) and there's no reverse-geocoding here to tell the difference; a non-address label
     just yields an unhelpful map search rather than a broken link.
+- **Countdown page** (`countdown.html`, first item in the nav on every page): a single live
+  ticking countdown to one upcoming event, driven entirely by one `Settings` row —
+  `Countdown` = `[Event][mm/dd/yy][HHMM]`, e.g. `[SoJo Performance - Bingham][08/20/26][1500]`.
+  Parsed client-side (`parseCountdown()` in `countdown.html`) and rendered with the same
+  day/hour/minute/second breakdown T-Minus uses (`formatCountdown()`, copied verbatim for a
+  consistent look), ticking every second via `setInterval`. Deliberately single-event, not a
+  list — a new `Countdown` value replaces the old one rather than adding a second row. A
+  missing or malformed value (doesn't match the exact bracket format) shows a plain "not set up
+  yet" placeholder instead of a broken countdown. Added `Countdown` to `PUBLIC_SETTINGS_KEYS` in
+  `api.php` since it's read by the public `settings` action, same allowlist discipline as
+  `InstructionsText` before it. No schema change and no `admin.html` change needed — `Settings`
+  already generically supports any Key/Value row, and its `Value` column already renders as an
+  expandable textarea for exactly this kind of longer text.

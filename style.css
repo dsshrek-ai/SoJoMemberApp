@@ -259,6 +259,25 @@ form label {
 .attendance-status.color-yellow { background: var(--color-pinned-bg); }
 .attendance-status.color-gray   { background: #e2ddd3; }
 
+.countdown-card {
+  text-align: center;
+  padding: 2.5rem 1.5rem;
+}
+
+.countdown-event {
+  font-size: 1.4rem;
+  font-weight: bold;
+  color: var(--color-primary-dark);
+  margin-bottom: 0.75rem;
+}
+
+.countdown-timer {
+  font-size: 2rem;
+  font-weight: bold;
+  color: var(--color-accent);
+  letter-spacing: 0.02em;
+}
+
 footer.site-footer {
   text-align: center;
   padding: 1.5rem 1rem;

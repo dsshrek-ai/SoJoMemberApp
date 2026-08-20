@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Countdown | Choir App</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#main-content" class="skip-link">Skip to main content</a>
+<header class="site-header">
+  <h1>SOJO Choral Arts Seasons Chorale Choir</h1>
+  <nav class="site-nav">
+    <a href="countdown.html" aria-current="page">Countdown</a>
+    <a href="index.html">Home</a>
+    <a href="announcements.html">Announcements</a>
+    <a href="schedule.html">Schedule</a>
+    <a href="volunteer.html">Volunteer</a>
+    <a href="songs.html">Songs</a>
+    <a href="absent.html">Report Absence</a>
+    <a href="myinfo.html">My Info</a>
+    <a href="recognition.html">Recognition</a>
+    <a href="sponsors.html">Sponsors &amp; Giving</a>
+    <a href="join.html">Join Us</a>
+    <a href="instructions.html">Instructions</a>
+  </nav>
+</header>
+<main id="main-content">
+  <h2>Countdown</h2>
+  <div id="content">Loading&hellip;</div>
+</main>
+<footer class="site-footer">Choir App &mdash; built for our community</footer>
+<script src="js/api.js"></script>
+<script>
+  // Parses Settings.Countdown, formatted "[Event][mm/dd/yy][HHMM]" — e.g.
+  // "[SoJo Performance - Bingham][08/20/26][1500]" for 3:00 PM on 8/20/26.
+  // Only one countdown is supported at a time, by design.
+  function parseCountdown(raw) {
+    const m = /^\[\s*(.*?)\s*\]\[\s*(\d{1,2})\/(\d{1,2})\/(\d{2})\s*\]\[\s*(\d{4})\s*\]$/.exec((raw || '').trim());
+    if (!m) return null;
+    const [, event, mm, dd, yy, hhmm] = m;
+    if (!event) return null;
+    const year = 2000 + parseInt(yy, 10);
+    const hours = parseInt(hhmm.slice(0, 2), 10);
+    const minutes = parseInt(hhmm.slice(2, 4), 10);
+    const target = new Date(year, parseInt(mm, 10) - 1, parseInt(dd, 10), hours, minutes, 0);
+    if (isNaN(target.getTime())) return null;
+    return { event, target };
+  }
+
+  // Same day/hour/minute/second breakdown T-Minus uses, for a consistent look.
+  function formatCountdown(ms) {
+    if (ms <= 0) return 'Arrived! \u{1F389}';
+    const totalSeconds = Math.floor(ms / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const parts = [];
+    if (days) parts.push(`${days}d`);
+    if (days || hours) parts.push(`${hours}h`);
+    if (days || hours || minutes) parts.push(`${minutes}m`);
+    parts.push(`${seconds}s`);
+    return parts.join(' ');
+  }
+
+  (async () => {
+    const el = document.getElementById('content');
+    let countdown;
+    try {
+      const rows = await fetchData('settings');
+      const raw = (rows.find(s => s.Key === 'Countdown') || {}).Value;
+      countdown = parseCountdown(raw);
+    } catch (e) {
+      showPlaceholder(el, "Couldn't load right now — check your connection and try refreshing.");
+      return;
+    }
+
+    if (!countdown) {
+      el.innerHTML = `<p class="placeholder-note">No countdown has been set up yet. The director can add one via the admin panel (Settings &rarr; Countdown).</p>`;
+      return;
+    }
+
+    el.innerHTML = `
+      <div class="card countdown-card">
+        <div class="countdown-event">${escapeHtml(countdown.event)}</div>
+        <div class="countdown-timer" id="countdown-timer"></div>
+      </div>
+    `;
+    const timerEl = document.getElementById('countdown-timer');
+    const tick = () => { timerEl.textContent = formatCountdown(countdown.target.getTime() - Date.now()); };
+    tick();
+    setInterval(tick, 1000);
+  })();
+</script>
+</body>
+</html>
