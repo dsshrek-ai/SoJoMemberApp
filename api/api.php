@@ -132,11 +132,22 @@ $DATA_TABLES = [
     'Position' => 'position', 'LeaderName' => 'leader_name', 'LeaderEmail' => 'leader_email',
     'LeaderPhone' => 'leader_phone',
   ]],
+  // Nav links shown across every member-facing page — admin-editable order
+  // and visibility, replacing the old hardcoded <nav> duplicated per page.
+  'NavItems' => ['table' => 'choir_nav_items', 'columns' => [
+    'Label' => 'label', 'PageFile' => 'page_file', 'SortOrder' => 'sort_order', 'Visible' => 'visible',
+  ]],
+  // Links to PDFs/downloads, mostly hosted elsewhere (Google Drive, church
+  // site, etc.) — just a URL, same pattern as Songs' RehearsalTrackURL and
+  // Sponsors' LogoURL. No file upload/hosting built for this.
+  'Documents' => ['table' => 'choir_documents', 'columns' => [
+    'Title' => 'title', 'Url' => 'url', 'Category' => 'category', 'SortOrder' => 'sort_order',
+  ]],
 ];
 
 // Columns that must round-trip as JSON numbers, not strings (so `>=` comparisons
 // in the front end work correctly instead of comparing lexically).
-$NUMERIC_COLUMNS = ['SlotsNeeded'];
+$NUMERIC_COLUMNS = ['SlotsNeeded', 'SortOrder', 'Visible'];
 
 // Columns backed by a real SQL DATE column (see schema.sql). MySQL rejects an
 // empty string for a DATE column outright (it's not a valid date), so a
@@ -509,6 +520,22 @@ switch ($action) {
       'announcements' => 'Announcements', 'recognition' => 'Recognition', 'sponsors' => 'Sponsors',
     ];
     respond(tableRows($sheetByAction[$action]));
+  }
+
+  // Nav links for the top of every page — admin-editable order/visibility.
+  // Public and unauthenticated, same trust level as schedule/songs/etc.
+  case 'navItems': {
+    $rows = array_values(array_filter(tableRows('NavItems'), function ($row) {
+      return (int)$row['Visible'] === 1;
+    }));
+    usort($rows, function ($a, $b) { return $a['SortOrder'] <=> $b['SortOrder']; });
+    respond($rows);
+  }
+
+  case 'documents': {
+    $rows = tableRows('Documents');
+    usort($rows, function ($a, $b) { return $a['SortOrder'] <=> $b['SortOrder']; });
+    respond($rows);
   }
 
   case 'settings': {

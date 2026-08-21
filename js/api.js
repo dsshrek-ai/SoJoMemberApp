@@ -187,3 +187,49 @@ function contactButtonsHtml(phone, email) {
   }
   return `<div class="contact-actions">${parts.join('')}</div>`;
 }
+
+// ---- Configurable nav (admin-editable order/visibility, see NavItems) ----
+
+// Seed data mirrors sheet-templates' original nav — used only if the
+// navItems fetch itself fails, so a broken API never leaves the app
+// unnavigable.
+const DEFAULT_NAV_ITEMS = [
+  { Label: 'Home', PageFile: 'index.html' },
+  { Label: 'Countdown', PageFile: 'countdown.html' },
+  { Label: 'Announcements', PageFile: 'announcements.html' },
+  { Label: 'Schedule', PageFile: 'schedule.html' },
+  { Label: 'Volunteer', PageFile: 'volunteer.html' },
+  { Label: 'Songs', PageFile: 'songs.html' },
+  { Label: 'Documents', PageFile: 'documents.html' },
+  { Label: 'Report Absence', PageFile: 'absent.html' },
+  { Label: 'My Info', PageFile: 'myinfo.html' },
+  { Label: 'Recognition', PageFile: 'recognition.html' },
+  { Label: 'Sponsors & Giving', PageFile: 'sponsors.html' },
+  { Label: 'Join Us', PageFile: 'join.html' },
+  { Label: 'Instructions', PageFile: 'instructions.html' },
+];
+
+async function renderNav() {
+  const nav = document.getElementById('site-nav');
+  if (!nav) return;
+  const currentPage = window.location.pathname.split('/').pop() || 'index.html';
+  let items;
+  try {
+    items = await fetchData('navItems');
+    if (!Array.isArray(items)) throw new Error('bad-response');
+  } catch (e) {
+    items = DEFAULT_NAV_ITEMS;
+  }
+  nav.innerHTML = items.map(item => {
+    const isCurrent = item.PageFile === currentPage;
+    return `<a href="${escapeHtml(item.PageFile)}"${isCurrent ? ' aria-current="page"' : ''}>${escapeHtml(item.Label)}</a>`;
+  }).join('');
+}
+
+// Auto-bootstrap: any page with a #site-nav element (every member-facing
+// page) gets the dynamic nav automatically just by including this script —
+// no per-page wiring needed. admin.html has no #site-nav, so it's untouched
+// (it has its own separate login system).
+if (document.getElementById('site-nav')) {
+  renderNav();
+}

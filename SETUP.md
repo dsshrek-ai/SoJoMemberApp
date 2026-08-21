@@ -112,3 +112,31 @@ the admin panel from the Hub skips its login screen entirely (`?token=...` hando
 is session-scoped (`sessionStorage`, not `localStorage`) even with SSO, since this panel edits
 real member data (phone numbers, absence notes) and may run on a shared computer — it clears
 itself when the browser tab closes.
+
+## Nav links (Home, Schedule, Songs, etc.)
+
+The top nav on every page is admin-editable now — pick **NavItems** in `admin.html` to add/reorder
+(`SortOrder`, lower shows first)/hide (`Visible`) any link, instead of editing HTML in 12 files.
+`Label` is the link text, `PageFile` is the target page (e.g. `schedule.html`). If the API can't be
+reached, pages fall back to a fixed default list (`DEFAULT_NAV_ITEMS` in `js/api.js`) so the app is
+never left unnavigable.
+
+## Documents page
+
+`documents.html` lists links to PDFs/downloads (not hosted files — paste a link to wherever the
+file already lives, e.g. Google Drive). Manage entries via **Documents** in `admin.html`: `Title`
+is the link text, `Url` the link, `Category` optionally groups related documents together (e.g.
+"Sheet Music", "Forms"), `SortOrder` controls order within a category. A `Documents` row already
+exists in `choir_nav_items` from the earlier schema run, so the nav link appears automatically —
+no separate step needed to make it show up.
+
+## A note on multi-choir support
+
+An attempt to let one deployment serve several choirs (see `ROADMAP.md`) was rolled back before
+going live — too much complexity for what was needed. The database migration for it had already
+been run by that point, so `choirs`/`choir_access` tables and a `choir_id` column on every
+`choir_*` table still exist; nothing in the app reads them, and every row defaults to `choir_id =
+1`, so they're inert. No action needed — just don't be surprised to see them in phpMyAdmin.
+`choir_documents` is the one exception — it came back into real (still unscoped) use for the
+Documents page above, after fixing a missing default on its `choir_id` column (see
+`api/schema.sql`).

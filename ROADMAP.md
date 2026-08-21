@@ -236,3 +236,30 @@ replaying prior conversations.
   `InstructionsText` before it. No schema change and no `admin.html` change needed — `Settings`
   already generically supports any Key/Value row, and its `Value` column already renders as an
   expandable textarea for exactly this kind of longer text.
+- **Configurable nav (admin-editable order/visibility)**: the top nav links repeated across all
+  pages used to be hardcoded HTML duplicated 12 times. Now driven by a new `choir_nav_items` table
+  (Label/PageFile/SortOrder/Visible) — a 13th entry in `admin.html`'s generic table editor, no
+  special UI needed. Every page's `<nav>` is now just `<nav class="site-nav" id="site-nav"></nav>`;
+  `renderNav()` in `js/api.js` fetches the ordered/visible rows via a new public `navItems` action
+  and fills it in, falling back to a hardcoded `DEFAULT_NAV_ITEMS` list if the fetch fails so a
+  broken API never leaves the app unnavigable. Runs automatically on page load (see the
+  auto-bootstrap block at the bottom of `js/api.js`) — no per-page script changes needed.
+- **Documents page**: new `documents.html` lists links to PDFs/downloads, grouped by an optional
+  `Category`, same "just a URL" pattern as Songs' `RehearsalTrackURL`/`YouTubeURL` and Sponsors'
+  `LogoURL` — no file upload/hosting was built, admins paste a link to wherever the file already
+  lives (Google Drive, church site, etc.). Backed by `choir_documents` (see the multi-choir note
+  below for why that table needed one small fix first), editable via `admin.html`.
+- **Multi-choir support — attempted and rolled back (2026-08-21)**: a same-day attempt at letting
+  one deployment serve several choirs (a `choirs`/`choir_access` table, `choir_id` on every table, a
+  per-page choir picker, `sojo-app` gaining a `CHOIR_SHEETS`/`CHOIR_META` map for per-choir roster
+  tabs) grew more complex than the app actually needed and was reverted before any of the
+  application code went live. The `api/schema.sql` migration for it had already been run against
+  the real database by the time that call was made, so `choirs`, `choir_access`, and a `choir_id`
+  column on every `choir_*` table are still there — deliberately left in place rather than dropped,
+  unused, every row defaulting to `choir_id = 1`. If multi-choir support is revisited later, that
+  schema is already a running start.
+  - **Exception**: `choir_documents` (created as part of that attempt) came back into real use once
+    Documents shipped on its own above — but it was originally created with no default on
+    `choir_id`, which would make a plain insert fail outright now that nothing sets `choir_id`
+    explicitly. Fixed with `ALTER TABLE choir_documents MODIFY COLUMN choir_id INT NOT NULL DEFAULT
+    1` (see `api/schema.sql`), bringing it in line with every other `choir_*` table.

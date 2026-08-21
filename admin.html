@@ -111,11 +111,16 @@
     Sponsors: ['SponsorName', 'LogoURL', 'Message', 'Tier'],
     Settings: ['Key', 'Value'],
     SectionLeaders: ['Position', 'LeaderName', 'LeaderEmail', 'LeaderPhone'],
+    NavItems: ['Label', 'PageFile', 'SortOrder', 'Visible'],
+    Documents: ['Title', 'Url', 'Category', 'SortOrder'],
   };
   const LONG_TEXT_COLUMNS = new Set(['Message', 'Notes', 'Note', 'Value']);
   const DATE_COLUMNS = new Set(['Date', 'LastRehearsedDate']);
   const TIME_COLUMNS = new Set(['Time']);
   const POSITION_COLUMNS = new Set(['Position']);
+  const NUMBER_COLUMNS = new Set(['SortOrder']);
+  // Stored as a MySQL TINYINT (1/0), unlike Pinned's 'Y'/'N' text column below.
+  const YES_NO_NUMERIC_COLUMNS = new Set(['Visible']);
   const POSITIONS = [
     'Soprano - 1st', 'Soprano - 2nd', 'Alto - 1st', 'Alto - 2nd',
     'Tenor - 1st', 'Tenor - 2nd', 'Bass - 1st', 'Bass - 2nd', 'HOLD',
@@ -280,6 +285,16 @@
         <option value="N" ${!isYes ? 'selected' : ''}>No</option>
         <option value="Y" ${isYes ? 'selected' : ''}>Yes</option>
       </select>`;
+    }
+    if (YES_NO_NUMERIC_COLUMNS.has(col)) {
+      const isYes = Number(value) === 1;
+      return `<select data-col="${col}">
+        <option value="0" ${!isYes ? 'selected' : ''}>No</option>
+        <option value="1" ${isYes ? 'selected' : ''}>Yes</option>
+      </select>`;
+    }
+    if (NUMBER_COLUMNS.has(col)) {
+      return `<input type="number" data-col="${col}" value="${escapeHtml(value ?? '0')}">`;
     }
     if (LONG_TEXT_COLUMNS.has(col)) {
       return `<div class="long-text-field">

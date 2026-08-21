@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Documents | Choir App</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#main-content" class="skip-link">Skip to main content</a>
+<header class="site-header">
+  <h1>SOJO Choral Arts Seasons Chorale Choir</h1>
+  <nav class="site-nav" id="site-nav"></nav>
+</header>
+<main id="main-content">
+  <h2>Documents</h2>
+  <div id="content">Loading documents&hellip;</div>
+</main>
+<footer class="site-footer">Choir App &mdash; built for our community</footer>
+<script src="js/api.js"></script>
+<script>
+  (async () => {
+    const el = document.getElementById('content');
+    try {
+      const rows = await fetchData('documents');
+      if (!rows.length) {
+        el.innerHTML = `<p class="placeholder-note">No documents posted yet.</p>`;
+        return;
+      }
+      // Group by Category (rows already come back ordered by SortOrder) so a
+      // director can cluster related PDFs (e.g. "Sheet Music", "Forms")
+      // without the page needing its own separate admin-editable ordering.
+      const groups = new Map();
+      rows.forEach(r => {
+        const category = r.Category || 'Documents';
+        if (!groups.has(category)) groups.set(category, []);
+        groups.get(category).push(r);
+      });
+      el.innerHTML = Array.from(groups.entries()).map(([category, docs]) => `
+        <div class="card">
+          <h3>${escapeHtml(category)}</h3>
+          <ul>
+            ${docs.map(d => `<li><a href="${escapeHtml(d.Url)}" target="_blank" rel="noopener">${escapeHtml(d.Title)}</a></li>`).join('')}
+          </ul>
+        </div>
+      `).join('');
+    } catch (e) {
+      showPlaceholder(el, "Couldn't load right now — check your connection and try refreshing.");
+    }
+  })();
+</script>
+</body>
+</html>
