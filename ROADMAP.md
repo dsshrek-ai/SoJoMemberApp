@@ -247,19 +247,20 @@ replaying prior conversations.
 - **Documents page**: new `documents.html` lists links to PDFs/downloads, grouped by an optional
   `Category`, same "just a URL" pattern as Songs' `RehearsalTrackURL`/`YouTubeURL` and Sponsors'
   `LogoURL` — no file upload/hosting was built, admins paste a link to wherever the file already
-  lives (Google Drive, church site, etc.). Backed by `choir_documents` (see the multi-choir note
-  below for why that table needed one small fix first), editable via `admin.html`.
-- **Multi-choir support — attempted and rolled back (2026-08-21)**: a same-day attempt at letting
-  one deployment serve several choirs (a `choirs`/`choir_access` table, `choir_id` on every table, a
-  per-page choir picker, `sojo-app` gaining a `CHOIR_SHEETS`/`CHOIR_META` map for per-choir roster
-  tabs) grew more complex than the app actually needed and was reverted before any of the
-  application code went live. The `api/schema.sql` migration for it had already been run against
-  the real database by the time that call was made, so `choirs`, `choir_access`, and a `choir_id`
-  column on every `choir_*` table are still there — deliberately left in place rather than dropped,
-  unused, every row defaulting to `choir_id = 1`. If multi-choir support is revisited later, that
-  schema is already a running start.
-  - **Exception**: `choir_documents` (created as part of that attempt) came back into real use once
-    Documents shipped on its own above — but it was originally created with no default on
-    `choir_id`, which would make a plain insert fail outright now that nothing sets `choir_id`
-    explicitly. Fixed with `ALTER TABLE choir_documents MODIFY COLUMN choir_id INT NOT NULL DEFAULT
-    1` (see `api/schema.sql`), bringing it in line with every other `choir_*` table.
+  lives (Google Drive, church site, etc.). Backed by a plain `choir_documents` table, editable via
+  `admin.html`.
+- **Multi-choir support — attempted and rolled back the same day (2026-08-21), before any of it
+  was ever run**: a same-day attempt at letting one deployment serve several choirs (a
+  `choirs`/`choir_access` table, `choir_id` on every table, a per-page choir picker, `sojo-app`
+  gaining a `CHOIR_SHEETS`/`CHOIR_META` map for per-choir roster tabs) grew more complex than the
+  app actually needed and was reverted before any of the application code went live. It was
+  initially assumed the `api/schema.sql` migration for it had already been run against the real
+  database, so those tables were left alone rather than dropped — but attempting to create the
+  Documents table days later revealed via `SHOW TABLES LIKE 'choir%'` that `choirs`, `choir_access`,
+  and the multi-choir `choir_nav_items`/`choir_documents` (with their `choir_id` foreign keys) were
+  never actually created in the live database at all — only the original 11 `choir_*` tables from
+  before that attempt exist. `api/schema.sql` has been corrected to drop that dead, never-applied
+  SQL entirely rather than describe a migration that never happened; `choir_nav_items` and
+  `choir_documents` are now plain tables with no `choir_id` column at all, matching how the rest of
+  this app already works. If multi-choir support is revisited later, design it fresh rather than
+  assuming any of that draft applies.

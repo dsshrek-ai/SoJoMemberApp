@@ -142,72 +142,11 @@ CREATE TABLE IF NOT EXISTS choir_section_leaders (
 -- SELECT u.id, a.id FROM users u, apps a
 -- WHERE u.username = 'you@example.com' AND a.app_key = 'choir-admin-panel';
 
--- ---------- SCHEMA CHANGE: multi-choir support ----------
--- Run once -- like the "email-based member identification" change above,
--- this section has ALTER TABLE ... ADD COLUMN / DROP INDEX statements that
--- fail if run a second time (unlike the CREATE TABLE IF NOT EXISTS
--- statements elsewhere in this file, which are always safe to re-run).
---
--- One deployment of this app can now serve more than one choir. Every
--- choir_* table gets a choir_id column; existing rows are backfilled to
--- choir_id = 1 (SOJO) so today's single-choir data keeps working unchanged.
--- app_access still gates "can this user open the choir-admin-panel tool at
--- all" (unchanged); choir_access is new and gates "which choir(s) can they
--- see/edit once inside" -- a user needs a row in both to administer a choir.
--- Member-facing pages have no login, so choir selection there is just a
--- public ?choir=<choir_key> / remembered localStorage value, not a security
--- boundary -- same trust level the roster-email lookup already relies on.
-
-CREATE TABLE IF NOT EXISTS choirs (
-  id          INT AUTO_INCREMENT PRIMARY KEY,
-  choir_key   VARCHAR(50) NOT NULL UNIQUE,
-  name        VARCHAR(255) NOT NULL,
-  is_active   TINYINT(1) NOT NULL DEFAULT 1,
-  created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-INSERT INTO choirs (id, choir_key, name) VALUES
-  (1, 'sojo', 'SOJO Choral Arts Seasons Chorale Choir')
-ON DUPLICATE KEY UPDATE choir_key = choir_key;
-
-CREATE TABLE IF NOT EXISTS choir_access (
-  id         INT AUTO_INCREMENT PRIMARY KEY,
-  user_id    INT NOT NULL,
-  choir_id   INT NOT NULL,
-  can_edit   TINYINT(1) NOT NULL DEFAULT 1,
-  UNIQUE KEY uniq_user_choir (user_id, choir_id),
-  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (choir_id) REFERENCES choirs(id) ON DELETE CASCADE
-) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- Grant every existing choir-admin-panel user access to SOJO (choir_id 1),
--- so nobody currently able to log in loses access when this ships.
-INSERT INTO choir_access (user_id, choir_id, can_edit)
-SELECT aa.user_id, 1, 1
-FROM app_access aa JOIN apps a ON a.id = aa.app_id
-WHERE a.app_key = 'choir-admin-panel'
-ON DUPLICATE KEY UPDATE can_edit = can_edit;
-
-ALTER TABLE choir_schedule          ADD COLUMN choir_id INT NOT NULL DEFAULT 1 AFTER id;
-ALTER TABLE choir_songs             ADD COLUMN choir_id INT NOT NULL DEFAULT 1 AFTER id;
-ALTER TABLE choir_lyrics            ADD COLUMN choir_id INT NOT NULL DEFAULT 1 AFTER id;
-ALTER TABLE choir_announcements     ADD COLUMN choir_id INT NOT NULL DEFAULT 1 AFTER id;
-ALTER TABLE choir_volunteer_tasks   ADD COLUMN choir_id INT NOT NULL DEFAULT 1 AFTER id;
-ALTER TABLE choir_volunteer_signups ADD COLUMN choir_id INT NOT NULL DEFAULT 1 AFTER id;
-ALTER TABLE choir_absences          ADD COLUMN choir_id INT NOT NULL DEFAULT 1 AFTER id;
-ALTER TABLE choir_recognition       ADD COLUMN choir_id INT NOT NULL DEFAULT 1 AFTER id;
-ALTER TABLE choir_sponsors          ADD COLUMN choir_id INT NOT NULL DEFAULT 1 AFTER id;
-
--- Settings/SectionLeaders were unique per key/position globally; now unique
--- per choir instead, so two choirs can each have their own DirectorEmail,
--- WelcomeMessage, section leaders, etc.
-ALTER TABLE choir_settings ADD COLUMN choir_id INT NOT NULL DEFAULT 1 AFTER id;
-ALTER TABLE choir_settings DROP INDEX setting_key;
-ALTER TABLE choir_settings ADD UNIQUE KEY uniq_choir_setting (choir_id, setting_key);
-
-ALTER TABLE choir_section_leaders ADD COLUMN choir_id INT NOT NULL DEFAULT 1 AFTER id;
-ALTER TABLE choir_section_leaders DROP INDEX position;
-ALTER TABLE choir_section_leaders ADD UNIQUE KEY uniq_choir_position (choir_id, position);
+-- A multi-choir design (choirs/choir_access tables, choir_id on every
+-- choir_* table) was drafted and then abandoned the same day, before any of
+-- it was ever actually run against this database -- see ROADMAP.md for the
+-- story. Nothing below references choir_id; if multi-choir support is ever
+-- revisited, design it fresh rather than assuming any of that draft applies.
 
 -- ---------- SCHEMA CHANGE: configurable nav + Documents page ----------
 -- Run once -- the INSERT INTO choir_nav_items seed rows below have no
@@ -221,44 +160,31 @@ ALTER TABLE choir_section_leaders ADD UNIQUE KEY uniq_choir_position (choir_id, 
 
 CREATE TABLE IF NOT EXISTS choir_nav_items (
   id          INT AUTO_INCREMENT PRIMARY KEY,
-  choir_id    INT NOT NULL,
   label       VARCHAR(100) NOT NULL,
   page_file   VARCHAR(100) NOT NULL,
   sort_order  INT NOT NULL DEFAULT 0,
-  visible     TINYINT(1) NOT NULL DEFAULT 1,
-  FOREIGN KEY (choir_id) REFERENCES choirs(id) ON DELETE CASCADE
+  visible     TINYINT(1) NOT NULL DEFAULT 1
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO choir_nav_items (choir_id, label, page_file, sort_order) VALUES
-  (1, 'Home',              'index.html',         10),
-  (1, 'Countdown',         'countdown.html',      20),
-  (1, 'Announcements',     'announcements.html',  30),
-  (1, 'Schedule',          'schedule.html',       40),
-  (1, 'Volunteer',         'volunteer.html',      50),
-  (1, 'Songs',              'songs.html',          60),
-  (1, 'Documents',          'documents.html',      65),
-  (1, 'Report Absence',    'absent.html',         70),
-  (1, 'My Info',           'myinfo.html',         80),
-  (1, 'Recognition',       'recognition.html',    90),
-  (1, 'Sponsors & Giving', 'sponsors.html',       100),
-  (1, 'Join Us',           'join.html',           110),
-  (1, 'Instructions',      'instructions.html',   120);
+INSERT INTO choir_nav_items (label, page_file, sort_order) VALUES
+  ('Home',              'index.html',         10),
+  ('Countdown',         'countdown.html',      20),
+  ('Announcements',     'announcements.html',  30),
+  ('Schedule',          'schedule.html',       40),
+  ('Volunteer',         'volunteer.html',      50),
+  ('Songs',             'songs.html',          60),
+  ('Documents',         'documents.html',      65),
+  ('Report Absence',    'absent.html',         70),
+  ('My Info',           'myinfo.html',         80),
+  ('Recognition',       'recognition.html',    90),
+  ('Sponsors & Giving', 'sponsors.html',       100),
+  ('Join Us',           'join.html',           110),
+  ('Instructions',      'instructions.html',   120);
 
 CREATE TABLE IF NOT EXISTS choir_documents (
   id          INT AUTO_INCREMENT PRIMARY KEY,
-  choir_id    INT NOT NULL,
   title       VARCHAR(255) NOT NULL,
   url         VARCHAR(500) NOT NULL,
   category    VARCHAR(100) NULL,
-  sort_order  INT NOT NULL DEFAULT 0,
-  FOREIGN KEY (choir_id) REFERENCES choirs(id) ON DELETE CASCADE
+  sort_order  INT NOT NULL DEFAULT 0
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ---------- SCHEMA CHANGE: Documents page ----------
--- Run once. The multi-choir attempt above was rolled back (see ROADMAP.md),
--- so nothing in the app sets choir_id explicitly anymore -- every other
--- choir_* table's choir_id has DEFAULT 1 for exactly this reason, but
--- choir_documents (created after that attempt started) never got one,
--- which would make a plain INSERT (omitting choir_id, same as every other
--- admin-editable table) fail outright. This just brings it in line.
-ALTER TABLE choir_documents MODIFY COLUMN choir_id INT NOT NULL DEFAULT 1;
