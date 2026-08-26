@@ -235,6 +235,43 @@ form label {
 
 .contact-btn:hover { opacity: 0.9; }
 
+.song-parts {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.song-part-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.song-part-row:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.song-part-label {
+  font-weight: bold;
+}
+
+.song-part-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.song-part-controls audio {
+  max-width: 100%;
+  vertical-align: middle;
+}
+
 .attendance-table {
   width: 100%;
   border-collapse: collapse;

@@ -42,17 +42,19 @@
         ${tracks.length ? `
           <div class="card">
             <h3>Choose Your Part</h3>
-            <ul>
+            <div class="song-parts">
               ${tracks.map(t => `
-                <li>
-                  ${escapeHtml(t.PartLabel || 'Track')}
+                <div class="song-part-row">
+                  <span class="song-part-label">${escapeHtml(t.PartLabel || 'Track')}</span>
                   ${t.Url ? `
-                    <audio controls preload="none" src="${escapeHtml(t.Url)}"></audio>
-                    <a class="btn" href="${escapeHtml(t.Url)}" download="${escapeHtml(t.FileName || '')}" data-force-download>Download</a>
+                    <div class="song-part-controls">
+                      <audio controls preload="none" src="${escapeHtml(t.Url)}"></audio>
+                      <a class="btn" href="${escapeHtml(t.Url)}" download="${escapeHtml(t.FileName || '')}" data-force-download>Download</a>
+                    </div>
                   ` : ''}
-                </li>
+                </div>
               `).join('')}
-            </ul>
+            </div>
           </div>
         ` : ''}
         ${documents.length ? `
