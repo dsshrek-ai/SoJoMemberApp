@@ -19,11 +19,10 @@
 <footer class="site-footer">Choir App &mdash; built for our community</footer>
 <script src="js/api.js"></script>
 <script>
-  // My Apps Hub launches this app at index.html, so this is where a
-  // ?token=... SSO handoff actually arrives — captured here (silently, no
-  // lookup box on this page) so it's already remembered by the time the
-  // member clicks into Volunteer/Report Absence/My Info.
-  captureSsoEmail();
+  // My Apps Hub launches this app at index.html with a ?token=... SSO
+  // handoff -- the shared auto-bootstrap in js/api.js already captures it
+  // (as this app's login, and resolved to an email for the roster lookups)
+  // before this runs, so nothing extra is needed here.
 
   (async () => {
     const el = document.getElementById('content');
@@ -34,7 +33,7 @@
         ? `<div class="card">${formatText(welcome)}</div>`
         : `<p class="placeholder-note">No welcome message has been set yet. The director can add one via the admin panel (Settings &rarr; WelcomeMessage).</p>`;
     } catch (e) {
-      showPlaceholder(el, "Couldn't load right now — check your connection and try refreshing.");
+      handleFetchError(el, e);
     }
   })();
 </script>

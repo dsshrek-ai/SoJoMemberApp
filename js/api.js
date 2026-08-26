@@ -7,14 +7,35 @@ function isConfigured() {
   return CONFIG.API_URL && !CONFIG.API_URL.includes("YOUR_");
 }
 
+// ---- Member login (My Apps Hub SSO token, or a manual fallback login) ----
+// The whole app requires a login now -- every action in api.php except
+// login/logout/whoAmI checks this token against the shared sessions table
+// and an app_access grant. Stored in localStorage (not sessionStorage) since
+// members should stay logged in across visits, same as the saved email below.
+
+const MEMBER_TOKEN_KEY = 'choirMemberToken';
+function getMemberToken() { return localStorage.getItem(MEMBER_TOKEN_KEY) || ''; }
+function saveMemberToken(token) { localStorage.setItem(MEMBER_TOKEN_KEY, token); }
+function clearMemberToken() { localStorage.removeItem(MEMBER_TOKEN_KEY); }
+
+function memberAuthHeaders() {
+  const token = getMemberToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
 // Reads one data domain, e.g. fetchData("schedule").
-// Returns parsed JSON, or throws if the request fails.
+// Returns parsed JSON, or throws if the request fails -- throws an Error
+// with message "not-authorized" specifically for a 401/403, so callers can
+// tell "not logged in" apart from a plain network/server failure.
 async function fetchData(action) {
   if (!isConfigured()) {
     throw new Error("not-configured");
   }
   const url = `${CONFIG.API_URL}?action=${encodeURIComponent(action)}`;
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: memberAuthHeaders() });
+  if (res.status === 401 || res.status === 403) {
+    throw new Error("not-authorized");
+  }
   if (!res.ok) {
     throw new Error(`Request failed: ${res.status}`);
   }
@@ -28,9 +49,12 @@ async function postAction(action, payload) {
   }
   const res = await fetch(CONFIG.API_URL, {
     method: "POST",
-    headers: { "Content-Type": "text/plain" },
+    headers: { "Content-Type": "text/plain", ...memberAuthHeaders() },
     body: JSON.stringify({ action, ...payload }),
   });
+  if (res.status === 401 || res.status === 403) {
+    throw new Error("not-authorized");
+  }
   if (!res.ok) {
     throw new Error(`Request failed: ${res.status}`);
   }
@@ -41,6 +65,80 @@ async function postAction(action, payload) {
 // or the request failed. Used by placeholder pages until each phase wires up real data.
 function showPlaceholder(container, message) {
   container.innerHTML = `<p class="placeholder-note">${message}</p>`;
+}
+
+// Renders a login-required or access-denied card into `container`, in place
+// of whatever the page was trying to load. "no-token" includes a manual
+// login form (reusing the same `login` action admin.html's own form calls)
+// for a bookmarked direct visit that skipped the Hub's SSO handoff -- most
+// members never see this, since opening the app from My Apps Hub logs them
+// in automatically. "denied" means the login itself is fine, but that
+// account has no app_access grant for this app yet.
+function renderMemberGate(container, reason) {
+  if (reason === 'denied') {
+    container.innerHTML = `
+      <div class="card">
+        <p class="placeholder-note">Your login isn't set up for this app yet. Ask your director to grant you access, or open the app again from My Apps Hub.</p>
+      </div>
+    `;
+    return;
+  }
+  container.innerHTML = `
+    <div class="card">
+      <h3>Log In</h3>
+      <p class="placeholder-note">Normally you won't see this — opening the app from My Apps Hub logs you in automatically. Use this only if you got here another way.</p>
+      <label for="member-login-email">Email</label>
+      <input type="email" id="member-login-email" autocomplete="username">
+      <label for="member-login-pw">Password</label>
+      <input type="password" id="member-login-pw" autocomplete="current-password">
+      <p><button type="button" class="btn" id="member-login-btn">Log In</button></p>
+      <div id="member-login-msg"></div>
+    </div>
+  `;
+  const emailInput = document.getElementById('member-login-email');
+  const pwInput = document.getElementById('member-login-pw');
+  const msgEl = document.getElementById('member-login-msg');
+  const loginBtn = document.getElementById('member-login-btn');
+
+  async function attemptLogin() {
+    const username = emailInput.value.trim();
+    const password = pwInput.value;
+    if (!username || !password) return;
+    loginBtn.disabled = true;
+    msgEl.innerHTML = '';
+    try {
+      const res = await fetch(CONFIG.API_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain' },
+        body: JSON.stringify({ action: 'login', username, password }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.token) {
+        msgEl.innerHTML = `<p class="placeholder-note">${escapeHtml(data.error || 'Incorrect email or password.')}</p>`;
+        loginBtn.disabled = false;
+        return;
+      }
+      saveMemberToken(data.token);
+      window.location.reload();
+    } catch (e) {
+      msgEl.innerHTML = `<p class="placeholder-note">Something went wrong logging in. Please try again.</p>`;
+      loginBtn.disabled = false;
+    }
+  }
+
+  loginBtn.addEventListener('click', attemptLogin);
+  pwInput.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') attemptLogin(); });
+}
+
+// Pages call this from their fetch catch blocks instead of showPlaceholder
+// directly, so a login/access problem shows the right message (and, for a
+// missing login, a way to fix it) instead of a generic "couldn't load."
+function handleFetchError(container, error) {
+  if (error && error.message === 'not-authorized') {
+    renderMemberGate(container, getMemberToken() ? 'denied' : 'no-token');
+  } else {
+    showPlaceholder(container, "Couldn't load right now — check your connection and try refreshing.");
+  }
 }
 
 // Escapes text before dropping it into innerHTML, since sheet content is free-form text.
@@ -118,7 +216,8 @@ function notFoundMessage(email) {
 async function lookupMember(email) {
   if (!isConfigured()) throw new Error('not-configured');
   const url = `${CONFIG.API_URL}?action=lookupMember&email=${encodeURIComponent(email)}`;
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: memberAuthHeaders() });
+  if (res.status === 401 || res.status === 403) throw new Error('not-authorized');
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
   return res.json();
 }
@@ -128,7 +227,8 @@ async function lookupMember(email) {
 async function lookupMyAttendance(email) {
   if (!isConfigured()) throw new Error('not-configured');
   const url = `${CONFIG.API_URL}?action=myAttendance&email=${encodeURIComponent(email)}`;
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: memberAuthHeaders() });
+  if (res.status === 401 || res.status === 403) throw new Error('not-authorized');
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
   return res.json();
 }
@@ -139,34 +239,52 @@ async function lookupMyAttendance(email) {
 async function lookupSectionLeader(position) {
   if (!isConfigured()) throw new Error('not-configured');
   const url = `${CONFIG.API_URL}?action=sectionLeader&position=${encodeURIComponent(position)}`;
-  const res = await fetch(url);
+  const res = await fetch(url, { headers: memberAuthHeaders() });
+  if (res.status === 401 || res.status === 403) throw new Error('not-authorized');
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
   return res.json();
 }
 
-// If arriving from My Apps Hub with ?token=... (SSO handoff), resolves it to
-// this member's MyDataWorld login email and remembers it the same way a
-// typed-and-looked-up email would be (saveEmail) -- so the existing "auto-run
-// the lookup if a saved email exists" logic on volunteer.html/absent.html/
-// myinfo.html picks it up with no extra code there. Always strips the token
-// out of the URL (whether or not it resolved), so it doesn't linger in the
-// address bar/history. Call and `await` this BEFORE checking getSavedEmail()
-// so a resolved token wins over whatever was previously saved.
-async function captureSsoEmail() {
-  const token = new URLSearchParams(window.location.search).get('token');
-  if (!token) return;
-  window.history.replaceState({}, document.title, window.location.pathname);
-  if (!isConfigured()) return;
-  try {
-    const res = await fetch(`${CONFIG.API_URL}?action=whoAmI&token=${encodeURIComponent(token)}`);
-    const data = await res.json();
-    if (data.ok && data.email) {
-      saveEmail(data.email);
+// If arriving from My Apps Hub with ?token=... (SSO handoff), this is the
+// member's login for the whole app now, not just a roster-lookup
+// convenience: it's saved directly as this app's own Bearer token
+// (saveMemberToken) since it's already a real row in the same shared
+// sessions table requireMember() in api.php checks. It's also resolved to
+// the member's email (saveEmail) the same way a typed-and-looked-up email
+// would be, so the existing "auto-run the lookup if a saved email exists"
+// logic on volunteer.html/absent.html/myinfo.html picks it up with no extra
+// code there. Always strips the token out of the URL (whether or not it
+// resolved), so it doesn't linger in the address bar/history.
+//
+// Every member-facing page now calls this at least once (the shared
+// auto-bootstrap below calls it before renderNav(), and volunteer.html/
+// absent.html/myinfo.html also call it themselves before checking
+// getSavedEmail()) -- run-once caching via ssoCapturePromise makes that
+// safe: whichever call happens first does the real work and every other
+// call on the same page load just awaits that same promise, so a second
+// caller is guaranteed the resolution has actually finished (not "there was
+// no token left to find because an earlier call already stripped it").
+let ssoCapturePromise = null;
+function captureSsoEmail() {
+  if (ssoCapturePromise) return ssoCapturePromise;
+  ssoCapturePromise = (async () => {
+    const token = new URLSearchParams(window.location.search).get('token');
+    if (!token) return;
+    window.history.replaceState({}, document.title, window.location.pathname);
+    if (!isConfigured()) return;
+    saveMemberToken(token);
+    try {
+      const res = await fetch(`${CONFIG.API_URL}?action=whoAmI&token=${encodeURIComponent(token)}`);
+      const data = await res.json();
+      if (data.ok && data.email) {
+        saveEmail(data.email);
+      }
+    } catch (e) {
+      // Best-effort -- a failed resolve just means no pre-fill, same as if
+      // there had never been a token at all.
     }
-  } catch (e) {
-    // Best-effort -- a failed resolve just means no pre-fill, same as if
-    // there had never been a token at all.
-  }
+  })();
+  return ssoCapturePromise;
 }
 
 // Renders Call/Text/Email tap buttons for a phone/email pair, matching
@@ -227,9 +345,15 @@ async function renderNav() {
 }
 
 // Auto-bootstrap: any page with a #site-nav element (every member-facing
-// page) gets the dynamic nav automatically just by including this script —
-// no per-page wiring needed. admin.html has no #site-nav, so it's untouched
-// (it has its own separate login system).
+// page) captures a My Apps Hub SSO token first, if this load has one, then
+// renders the nav -- no per-page wiring needed. Capturing here (not just in
+// the handful of pages that already call captureSsoEmail() themselves for
+// the roster lookup) means the token is saved before *any* page's own fetch
+// runs, since every fetch now requires it. admin.html has no #site-nav, so
+// it's untouched (it has its own separate login system).
 if (document.getElementById('site-nav')) {
-  renderNav();
+  (async () => {
+    await captureSsoEmail();
+    await renderNav();
+  })();
 }

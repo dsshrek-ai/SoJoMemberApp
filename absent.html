@@ -15,43 +15,46 @@
 <main id="main-content">
   <h2>Can't Make It?</h2>
   <div id="status" class="placeholder-note" style="display:none;"></div>
+  <div id="gate"></div>
 
-  <div class="card member-lookup">
-    <label for="lookup-email">Your Email</label>
-    <input type="email" id="lookup-email" placeholder="you@example.com">
-    <p><button type="button" class="btn" id="lookup-btn">Look Up</button></p>
-    <div id="lookup-status"></div>
+  <div id="member-area">
+    <div class="card member-lookup">
+      <label for="lookup-email">Your Email</label>
+      <input type="email" id="lookup-email" placeholder="you@example.com">
+      <p><button type="button" class="btn" id="lookup-btn">Look Up</button></p>
+      <div id="lookup-status"></div>
+    </div>
+
+    <form id="absence-form" class="card">
+      <label for="name">Your Name</label>
+      <input type="text" id="name" required>
+
+      <label for="phone">Your Phone</label>
+      <input type="tel" id="phone">
+
+      <label for="position">Your Section/Position</label>
+      <select id="position" required>
+        <option value="" disabled selected>Choose one&hellip;</option>
+        <option>Soprano - 1st</option>
+        <option>Soprano - 2nd</option>
+        <option>Alto - 1st</option>
+        <option>Alto - 2nd</option>
+        <option>Tenor - 1st</option>
+        <option>Tenor - 2nd</option>
+        <option>Bass - 1st</option>
+        <option>Bass - 2nd</option>
+        <option>HOLD</option>
+      </select>
+
+      <label for="date">Date You'll Miss</label>
+      <input type="date" id="date" required>
+
+      <label for="note">Note (optional)</label>
+      <input type="text" id="note" placeholder="e.g. out of town, feeling sick">
+
+      <p><button type="submit" class="btn">Submit</button></p>
+    </form>
   </div>
-
-  <form id="absence-form" class="card">
-    <label for="name">Your Name</label>
-    <input type="text" id="name" required>
-
-    <label for="phone">Your Phone</label>
-    <input type="tel" id="phone">
-
-    <label for="position">Your Section/Position</label>
-    <select id="position" required>
-      <option value="" disabled selected>Choose one&hellip;</option>
-      <option>Soprano - 1st</option>
-      <option>Soprano - 2nd</option>
-      <option>Alto - 1st</option>
-      <option>Alto - 2nd</option>
-      <option>Tenor - 1st</option>
-      <option>Tenor - 2nd</option>
-      <option>Bass - 1st</option>
-      <option>Bass - 2nd</option>
-      <option>HOLD</option>
-    </select>
-
-    <label for="date">Date You'll Miss</label>
-    <input type="date" id="date" required>
-
-    <label for="note">Note (optional)</label>
-    <input type="text" id="note" placeholder="e.g. out of town, feeling sick">
-
-    <p><button type="submit" class="btn">Submit</button></p>
-  </form>
 </main>
 <footer class="site-footer">Choir App &mdash; built for our community</footer>
 <script src="js/api.js"></script>
@@ -101,7 +104,11 @@
         lookupStatusEl.innerHTML = `<p class="placeholder-note">${escapeHtml(notFoundMessage(email))}</p>`;
       }
     } catch (e) {
-      lookupStatusEl.innerHTML = `<p class="placeholder-note">Couldn't look that up right now — you can still fill in the form below by hand.</p>`;
+      if (e.message === 'not-authorized') {
+        showMemberGate();
+      } else {
+        lookupStatusEl.innerHTML = `<p class="placeholder-note">Couldn't look that up right now — you can still fill in the form below by hand.</p>`;
+      }
     }
     lookupBtn.disabled = false;
   }
@@ -109,8 +116,20 @@
   lookupBtn.addEventListener('click', runLookup);
   lookupEmailInput.addEventListener('keydown', e => { if (e.key === 'Enter') runLookup(); });
 
+  // Hides the lookup+form and shows the login gate in their place -- used
+  // both proactively (no saved login at all) and reactively (a lookup or
+  // submit came back 401/403, e.g. a token that went bad mid-session).
+  function showMemberGate() {
+    document.getElementById('member-area').style.display = 'none';
+    renderMemberGate(document.getElementById('gate'), getMemberToken() ? 'denied' : 'no-token');
+  }
+
   (async () => {
     await captureSsoEmail();
+    if (!getMemberToken()) {
+      showMemberGate();
+      return;
+    }
     const savedEmail = getSavedEmail();
     if (savedEmail) {
       lookupEmailInput.value = savedEmail;
@@ -148,7 +167,12 @@
         showStatus('Something went wrong submitting that. Please try again.');
       }
     } catch (e) {
-      showStatus('Something went wrong submitting that. Please try again.');
+      if (e.message === 'not-authorized') {
+        showStatus("You're not logged in anymore — refresh the page to log in again.");
+        showMemberGate();
+      } else {
+        showStatus('Something went wrong submitting that. Please try again.');
+      }
     }
     submitBtn.disabled = false;
     submitBtn.textContent = 'Submit';

@@ -52,7 +52,8 @@ function jsonBody(): array {
   return is_array($decoded) ? $decoded : [];
 }
 
-// ---- Auth (admin panel only — everything below is unauthenticated/public) ----
+// ---- Auth — every action below requires a login now, except login/logout/
+// ---- whoAmI, which is how a session gets established in the first place ----
 
 function requireUser(): array {
   $header = $_SERVER['HTTP_AUTHORIZATION'] ?? '';
@@ -90,6 +91,30 @@ function requireChoirAdminAccess(array $user): void {
   if (!$ok) {
     fail('Not authorized for the Choir Admin Panel', 403);
   }
+}
+
+function requireMemberAccess(array $user): void {
+  $stmt = db()->prepare(
+    'SELECT 1 FROM app_access aa JOIN apps a ON a.id = aa.app_id
+     WHERE aa.user_id = ? AND a.app_key = ?'
+  );
+  $appKey = 'south-jordan-choral-arts';
+  $stmt->bind_param('is', $user['id'], $appKey);
+  $stmt->execute();
+  $ok = $stmt->get_result()->fetch_row();
+  $stmt->close();
+  if (!$ok) {
+    fail('Not authorized for the SoJo member app', 403);
+  }
+}
+
+// Every member-facing action calls this first — a valid MyDataWorld login
+// alone isn't enough, the account also needs an app_access grant for this
+// app specifically (same model requireChoirAdminAccess already uses).
+function requireMember(): array {
+  $user = requireUser();
+  requireMemberAccess($user);
+  return $user;
 }
 
 // ---- Table registry: sheet name (as the front end already knows it) -> ----
@@ -515,12 +540,13 @@ $action = $method === 'GET' ? ($_GET['action'] ?? '') : ($body['action'] ?? '');
 
 switch ($action) {
 
-  // -- Public reads (GET) --
+  // -- Member reads (GET, requires login + app_access) --
 
   case 'schedule':
   case 'announcements':
   case 'recognition':
   case 'sponsors': {
+    requireMember();
     $sheetByAction = [
       'schedule' => 'Schedule',
       'announcements' => 'Announcements', 'recognition' => 'Recognition', 'sponsors' => 'Sponsors',
@@ -530,6 +556,7 @@ switch ($action) {
 
   // Includes each row's id (as Id) so songs.html can link to song.html?id=...
   case 'songs': {
+    requireMember();
     $rows = array_map(function ($row) {
       $row['Id'] = $row['_row'];
       unset($row['_row']);
@@ -542,6 +569,7 @@ switch ($action) {
   // comes back with a real Url built from SONG_FILES_BASE_URL + the song's
   // FolderSlug + the row's FileName -- see the SongFiles comment in $DATA_TABLES.
   case 'song': {
+    requireMember();
     $id = (int)($_GET['id'] ?? 0);
     if ($id <= 0) {
       fail('Missing song id', 400);
@@ -566,8 +594,10 @@ switch ($action) {
   }
 
   // Nav links for the top of every page — admin-editable order/visibility.
-  // Public and unauthenticated, same trust level as schedule/songs/etc.
+  // Same login requirement as schedule/songs/etc.; a logged-out visitor
+  // falls back to DEFAULT_NAV_ITEMS in js/api.js instead of an empty nav.
   case 'navItems': {
+    requireMember();
     $rows = array_values(array_filter(tableRows('NavItems'), function ($row) {
       return (int)$row['Visible'] === 1;
     }));
@@ -576,12 +606,14 @@ switch ($action) {
   }
 
   case 'documents': {
+    requireMember();
     $rows = tableRows('Documents');
     usort($rows, function ($a, $b) { return $a['SortOrder'] <=> $b['SortOrder']; });
     respond($rows);
   }
 
   case 'settings': {
+    requireMember();
     $rows = array_values(array_filter(tableRows('Settings'), function ($row) use ($PUBLIC_SETTINGS_KEYS) {
       return in_array($row['Key'], $PUBLIC_SETTINGS_KEYS, true);
     }));
@@ -589,11 +621,13 @@ switch ($action) {
   }
 
   case 'volunteerStatus':
+    requireMember();
     respond(getVolunteerStatus());
 
-  // -- Public SOJO roster lookups (GET, no auth — see the section above) --
+  // -- SOJO roster lookups (GET, same login + app_access requirement) --
 
   case 'lookupMember': {
+    requireMember();
     $email = trim((string)($_GET['email'] ?? ''));
     if ($email === '') {
       respond(['ok' => false, 'reason' => 'invalid']);
@@ -606,6 +640,7 @@ switch ($action) {
   }
 
   case 'myAttendance': {
+    requireMember();
     $email = trim((string)($_GET['email'] ?? ''));
     if ($email === '') {
       respond(['ok' => false, 'reason' => 'invalid']);
@@ -618,17 +653,20 @@ switch ($action) {
   }
 
   case 'sectionLeader': {
+    requireMember();
     $position = trim((string)($_GET['position'] ?? ''));
     respond(['ok' => true, 'leader' => getSectionLeaderContact($position)]);
   }
 
   // Resolves a My Apps Hub SSO handoff token (?token=... on launch) to the
-  // logged-in member's email, so it can pre-fill the same lookup box a
-  // typed email would -- see captureSsoEmail() in js/api.js. Deliberately
-  // returns {ok:false} rather than a 401 for a missing/expired/invalid
-  // token: this is a best-effort convenience, not an auth gate, and a
-  // failure here should just fall through to "ask for the email" like
-  // always, not surface as an error.
+  // logged-in member's email, for the roster lookup pre-fill -- see
+  // captureSsoEmail() in js/api.js. The token itself is saved separately as
+  // this app's own Bearer token (requireMember() above checks it against the
+  // same sessions table); this action only ever needs to prove the token is
+  // some valid login, not that it's specifically authorized for this app --
+  // that's checked per-action, same as everything else. Deliberately returns
+  // {ok:false} rather than a 401 for a missing/expired/invalid token: this
+  // part is a best-effort convenience, not the auth gate itself.
   case 'whoAmI': {
     $token = trim((string)($_GET['token'] ?? ''));
     if ($token === '') {
@@ -648,12 +686,14 @@ switch ($action) {
     respond(['ok' => true, 'email' => $row['username']]);
   }
 
-  // -- Public writes (POST, no auth — matches the old no-login behavior) --
+  // -- Member writes (POST, same login + app_access requirement) --
 
   case 'claimSlot':
+    requireMember();
     respond(claimSlot($body));
 
   case 'markAbsent':
+    requireMember();
     respond(markAbsent($body));
 
   // -- MyDataWorld login (shared with My Apps Hub/T-Minus/Shed Inventory/PWI) --

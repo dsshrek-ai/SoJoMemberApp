@@ -65,7 +65,13 @@
         lookupStatusEl.innerHTML = `<p class="placeholder-note">${escapeHtml(notFoundMessage(email))}</p>`;
       }
     } catch (e) {
-      lookupStatusEl.innerHTML = `<p class="placeholder-note">Couldn't look that up right now — you can still sign up below with your name and phone.</p>`;
+      // A "not-authorized" lookup means the whole page is gated -- the main
+      // content area below (loadAndRender) already shows the real login
+      // prompt for that, so this box just stays quiet rather than showing a
+      // misleading "you can still sign up below."
+      if (e.message !== 'not-authorized') {
+        lookupStatusEl.innerHTML = `<p class="placeholder-note">Couldn't look that up right now — you can still sign up below with your name and phone.</p>`;
+      }
     }
     lookupBtn.disabled = false;
   }
@@ -87,7 +93,7 @@
     try {
       rows = await fetchData('volunteerStatus');
     } catch (e) {
-      showPlaceholder(contentEl, "Couldn't load right now — check your connection and try refreshing.");
+      handleFetchError(contentEl, e);
       return;
     }
     if (!rows.length) {
@@ -174,7 +180,9 @@
         showStatus('Something went wrong signing up. Please try again.');
       }
     } catch (e) {
-      showStatus('Something went wrong signing up. Please try again.');
+      showStatus(e.message === 'not-authorized'
+        ? "You're not logged in anymore — refresh the page to log in again."
+        : 'Something went wrong signing up. Please try again.');
     }
     loadAndRender();
   });

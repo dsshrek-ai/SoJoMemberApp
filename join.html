@@ -54,7 +54,7 @@
         });
       }
     } catch (e) {
-      showPlaceholder(el, "Couldn't load right now — check your connection and try refreshing.");
+      handleFetchError(el, e);
     }
   })();
 </script>

@@ -30,7 +30,7 @@
         ? `<div class="card"><a class="btn" href="${donationUrl}" target="_blank" rel="noopener">Support the Choir</a></div>`
         : `<p class="placeholder-note">No donation link has been set yet.</p>`;
     } catch (e) {
-      showPlaceholder(donateEl, "Couldn't load right now — check your connection and try refreshing.");
+      handleFetchError(donateEl, e);
     }
 
     const el = document.getElementById('content');
@@ -49,7 +49,7 @@
         </div>
       `).join('');
     } catch (e) {
-      showPlaceholder(el, "Couldn't load right now — check your connection and try refreshing.");
+      handleFetchError(el, e);
     }
   })();
 </script>
