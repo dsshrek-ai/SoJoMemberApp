@@ -1,15 +1,15 @@
 # Setup Guide
 
 This app is backed by **MyDataWorld**, the same shared database as My Apps Hub, T-Minus, Shed
-Inventory, and PWI Weight Tracker. Public pages (schedule, songs, lyrics, announcements,
-volunteer signup, absence reporting, etc.) stay exactly as open as they've always been — no
-login. Only the **admin panel** (`admin.html`) requires logging in now, using the same account
-as every other MyDataWorld app.
+Inventory, and PWI Weight Tracker. Every page — member-facing and the **admin panel**
+(`admin.html`) — now requires a MyDataWorld login with an `app_access` grant for
+`south-jordan-choral-arts` (member pages) or `choir-admin-panel` (admin). See "SSO lock-down"
+below for how that login actually reaches a member's browser and what the API enforces.
 
-One exception to "no login": volunteer.html, absent.html, and myinfo.html now ask for your email
-so they can look you up by name/phone/position/attendance against the SOJO Directory roster (the
-Google Sheet behind the sojo-app repo) — not a real login, just an identity lookup, and every
-field it fills in stays editable. See "7. Point the API at the SOJO roster" below.
+Separately: volunteer.html, absent.html, and myinfo.html also ask for your email so they can look
+you up by name/phone/position/attendance against the SOJO Directory roster (the Google Sheet
+behind the sojo-app repo) — not a second login, just an identity lookup, and every field it fills
+in stays editable. See "7. Point the API at the SOJO roster" below.
 
 ## 1. Update the database
 
@@ -168,6 +168,33 @@ at read time — nothing is stored as a full URL, so renaming `SONG_FILES_BASE_U
    ```
    Until this is in place, Download falls back to just opening the file in a new tab (same as
    before this fix).
+
+## SSO lock-down (every member page now requires login)
+
+Every action in `api/api.php` except `login`/`logout`/`whoAmI` now calls `requireMember()` —
+same shape as the admin panel's own `requireUser()` + `requireChoirAdminAccess()`, checking a
+Bearer token against `sessions`, then an `app_access` grant for `south-jordan-choral-arts` on
+that user. There's no separate signup here: it's the same MyDataWorld login every other app uses.
+
+**How the login actually reaches a member's browser:** opening this app from My Apps Hub passes
+`?token=...` in the URL — that's a real row in the shared `sessions` table already, the same one
+`requireMember()` checks, so `js/api.js`'s shared bootstrap just saves it directly as this app's
+own Bearer token (`captureSsoEmail()` → `saveMemberToken()`) instead of exchanging it for
+anything new. No token in the URL and nothing saved from a previous visit shows a login-required
+card in place of the page's real content (`renderMemberGate()` in `js/api.js`), with a manual
+email/password login form as a fallback — for a bookmarked direct link that skipped the Hub, or a
+first visit before anyone's ever launched it from there. That fallback reuses the existing
+`login` action, so no separate account or password exists for this fallback path.
+
+**One-time setup**: grant `south-jordan-choral-arts` `app_access` to every real member via My Apps
+Hub's `admin.html` (Admin Tool → their email → **Access**) before rolling this out — anyone
+without that grant is locked out immediately, including via the manual login form (a correct
+password alone isn't enough, `login` doesn't check `app_access` but every actual data action does).
+
+**Real behavior change worth announcing**: before this, the raw GitHub Pages link worked for
+anyone, no login at all. After this, a member who bookmarked that link directly (instead of always
+launching through the Hub) hits the login-required card the next time their saved token expires —
+worth a heads-up via Announcements so it doesn't look broken.
 
 ## A note on multi-choir support
 
