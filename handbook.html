@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SoJo Member Handbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f3efe4;
+    --surface: #fffdf8;
+    --surface-raised: #ffffff;
+    --ink: #211d2b;
+    --ink-soft: #55506b;
+    --primary: #2f3a63;
+    --primary-dark: #1f2748;
+    --accent: #b8863a;
+    --accent-soft: #e4d3ab;
+    --line: #ddd3bd;
+    --radius: 10px;
+    --serif: "Spectral", Georgia, "Times New Roman", serif;
+    --sans: "Public Sans", -apple-system, "Segoe UI", sans-serif;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14131c;
+      --surface: #1c1a28;
+      --surface-raised: #232032;
+      --ink: #ede8da;
+      --ink-soft: #b3adca;
+      --primary: #93a6df;
+      --primary-dark: #c2cef0;
+      --accent: #dcae5b;
+      --accent-soft: #4a3d24;
+      --line: #332f47;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --bg: #14131c;
+    --surface: #1c1a28;
+    --surface-raised: #232032;
+    --ink: #ede8da;
+    --ink-soft: #b3adca;
+    --primary: #93a6df;
+    --primary-dark: #c2cef0;
+    --accent: #dcae5b;
+    --accent-soft: #4a3d24;
+    --line: #332f47;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+  }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+  }
+
+  a { color: var(--primary); }
+
+  .shell {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 2.5rem 1.5rem 6rem;
+    display: grid;
+    grid-template-columns: 240px minmax(0, 1fr);
+    gap: 3rem;
+    align-items: start;
+  }
+
+  /* ---------- Masthead ---------- */
+
+  .back-link {
+    grid-column: 1 / -1;
+    font-size: 0.9rem;
+    color: var(--ink-soft);
+    text-decoration: none;
+  }
+  .back-link:hover { color: var(--primary); }
+
+  .masthead {
+    grid-column: 1 / -1;
+    padding-bottom: 2rem;
+    margin-bottom: 1rem;
+    margin-top: 0.75rem;
+    border-bottom: 2px solid var(--line);
+  }
+
+  .masthead .eyebrow {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 0.78rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .masthead h1 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: clamp(2.1rem, 4.4vw, 3.1rem);
+    line-height: 1.08;
+    margin: 0.4rem 0 0.75rem;
+    text-wrap: balance;
+    color: var(--ink);
+  }
+
+  .masthead p.dek {
+    font-size: 1.08rem;
+    color: var(--ink-soft);
+    max-width: 62ch;
+    margin: 0;
+  }
+
+  .masthead .no-login {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 1.1rem;
+    padding: 0.5rem 0.9rem;
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    font-size: 0.88rem;
+    color: var(--ink-soft);
+  }
+
+  .masthead .no-login strong { color: var(--ink); font-weight: 600; }
+
+  /* ---------- TOC ---------- */
+
+  nav.toc {
+    position: sticky;
+    top: 2rem;
+  }
+
+  nav.toc .toc-label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    margin-bottom: 0.75rem;
+  }
+
+  nav.toc ol {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    border-left: 1px solid var(--line);
+  }
+
+  nav.toc li { margin: 0; }
+
+  nav.toc a {
+    display: block;
+    padding: 0.4rem 0 0.4rem 0.9rem;
+    margin-left: -1px;
+    border-left: 2px solid transparent;
+    font-size: 0.92rem;
+    color: var(--ink-soft);
+    text-decoration: none;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+
+  nav.toc a .num {
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    margin-right: 0.4rem;
+  }
+
+  nav.toc a:hover { color: var(--ink); }
+
+  nav.toc a.active {
+    color: var(--ink);
+    border-left-color: var(--accent);
+    font-weight: 600;
+  }
+
+  /* ---------- Content ---------- */
+
+  main { min-width: 0; }
+
+  section.chapter {
+    padding: 2.1rem 0;
+    border-bottom: 1px solid var(--line);
+    scroll-margin-top: 1.5rem;
+  }
+  section.chapter:last-of-type { border-bottom: none; }
+
+  .chapter-head {
+    display: flex;
+    align-items: baseline;
+    gap: 0.85rem;
+    margin-bottom: 0.9rem;
+  }
+
+  .chapter-num {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+
+  .chapter h2 {
+    font-family: var(--serif);
+    font-weight: 600;
+    font-size: 1.55rem;
+    margin: 0;
+    color: var(--ink);
+    text-wrap: balance;
+  }
+
+  .chapter > p.lede {
+    max-width: 66ch;
+    color: var(--ink-soft);
+    margin: 0 0 1.1rem;
+  }
+
+  .chapter h3 {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 1rem;
+    margin: 1.4rem 0 0.6rem;
+    color: var(--ink);
+  }
+
+  .chapter p { max-width: 66ch; margin: 0 0 0.85rem; }
+
+  .steps {
+    max-width: 66ch;
+    margin: 0 0 1rem;
+    padding-left: 1.4rem;
+  }
+  .steps li { margin-bottom: 0.5rem; }
+  .steps li::marker {
+    font-variant-numeric: tabular-nums;
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  ul.plain {
+    max-width: 66ch;
+    margin: 0 0 1rem;
+    padding-left: 1.2rem;
+  }
+  ul.plain li { margin-bottom: 0.4rem; }
+  ul.plain li::marker { color: var(--accent); }
+
+  kbd.ui {
+    font-family: var(--sans);
+    font-size: 0.85em;
+    font-weight: 600;
+    background: var(--surface-raised);
+    border: 1px solid var(--line);
+    border-radius: 5px;
+    padding: 0.1em 0.45em;
+    color: var(--primary);
+  }
+
+  .callout {
+    max-width: 66ch;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 0.9rem 1.1rem;
+    margin: 0.9rem 0;
+    font-size: 0.95rem;
+    color: var(--ink-soft);
+  }
+
+  .callout strong { color: var(--ink); }
+
+  .page-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 0.6rem;
+    max-width: 66ch;
+    margin: 0.5rem 0 1rem;
+  }
+
+  .page-chip {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 0.55rem 0.7rem;
+    font-size: 0.86rem;
+  }
+
+  .page-chip .chip-name { font-weight: 600; color: var(--ink); display: block; }
+  .page-chip .chip-desc { color: var(--ink-soft); font-size: 0.8rem; }
+
+  .faq dt {
+    font-weight: 600;
+    color: var(--ink);
+    margin-top: 1rem;
+    max-width: 66ch;
+  }
+  .faq dd {
+    margin: 0.3rem 0 0;
+    max-width: 66ch;
+    color: var(--ink-soft);
+  }
+
+  footer.colophon {
+    grid-column: 1 / -1;
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 2px solid var(--line);
+    font-size: 0.85rem;
+    color: var(--ink-soft);
+  }
+
+  /* ---------- Mobile ---------- */
+
+  @media (max-width: 860px) {
+    .shell {
+      grid-template-columns: 1fr;
+      padding: 1.75rem 1.25rem 4rem;
+      gap: 1.5rem;
+    }
+    nav.toc {
+      position: static;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 1rem 1.1rem;
+    }
+    nav.toc ol {
+      border-left: none;
+      columns: 2;
+      column-gap: 1rem;
+    }
+    nav.toc a { padding-left: 0; border-left: none; }
+    nav.toc a.active { text-decoration: underline; text-decoration-color: var(--accent); text-underline-offset: 3px; }
+  }
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <a class="back-link" href="index.html">&larr; Back to the App</a>
+
+  <header class="masthead">
+    <div class="eyebrow">SOJO Choral Arts Seasons Chorale Choir</div>
+    <h1>The Member Handbook</h1>
+    <p class="dek">Everything the choir app can do for you — rehearsal schedules, sheet music and part tracks, volunteer signups, and more — in one walkthrough.</p>
+    <div class="no-login">🔑 <span>You'll get here by <strong>logging into My Apps Hub</strong> and opening the choir app from there. That login carries over automatically — pages that ask for your email already know who you are.</span></div>
+  </header>
+
+  <nav class="toc" aria-label="Table of contents">
+    <div class="toc-label">In this handbook</div>
+    <ol>
+      <li><a href="#getting-around"><span class="num">01</span>Getting Around</a></li>
+      <li><a href="#home"><span class="num">02</span>Home &amp; Announcements</a></li>
+      <li><a href="#schedule"><span class="num">03</span>Schedule</a></li>
+      <li><a href="#songs"><span class="num">04</span>Songs &amp; Parts</a></li>
+      <li><a href="#documents"><span class="num">05</span>Documents</a></li>
+      <li><a href="#volunteer"><span class="num">06</span>Volunteer Signups</a></li>
+      <li><a href="#absence"><span class="num">07</span>Report an Absence</a></li>
+      <li><a href="#myinfo"><span class="num">08</span>My Info</a></li>
+      <li><a href="#recognition"><span class="num">09</span>Recognition</a></li>
+      <li><a href="#sponsors"><span class="num">10</span>Sponsors &amp; Giving</a></li>
+      <li><a href="#join"><span class="num">11</span>Join Us</a></li>
+      <li><a href="#countdown"><span class="num">12</span>Countdown</a></li>
+      <li><a href="#faq"><span class="num">13</span>Tips &amp; FAQ</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <section class="chapter" id="getting-around">
+      <div class="chapter-head"><span class="chapter-num">01</span><h2>Getting Around</h2></div>
+      <p class="lede">Log into My Apps Hub and open the choir app from there — that's your way in every time. Once you're in, the bar across the top of every page is your whole map of the app; tap any link to jump straight there.</p>
+      <div class="page-grid">
+        <div class="page-chip"><span class="chip-name">Home</span><span class="chip-desc">Welcome message</span></div>
+        <div class="page-chip"><span class="chip-name">Countdown</span><span class="chip-desc">Time to the next big event</span></div>
+        <div class="page-chip"><span class="chip-name">Announcements</span><span class="chip-desc">News from the director</span></div>
+        <div class="page-chip"><span class="chip-name">Schedule</span><span class="chip-desc">Rehearsals &amp; events</span></div>
+        <div class="page-chip"><span class="chip-name">Volunteer</span><span class="chip-desc">Sign up for a task</span></div>
+        <div class="page-chip"><span class="chip-name">Songs</span><span class="chip-desc">Sheet music &amp; part tracks</span></div>
+        <div class="page-chip"><span class="chip-name">Documents</span><span class="chip-desc">Forms, PDFs, downloads</span></div>
+        <div class="page-chip"><span class="chip-name">Report Absence</span><span class="chip-desc">Can't make a rehearsal</span></div>
+        <div class="page-chip"><span class="chip-name">My Info</span><span class="chip-desc">Your details &amp; attendance</span></div>
+        <div class="page-chip"><span class="chip-name">Recognition</span><span class="chip-desc">Shout-outs</span></div>
+        <div class="page-chip"><span class="chip-name">Sponsors &amp; Giving</span><span class="chip-desc">Donate, see sponsors</span></div>
+        <div class="page-chip"><span class="chip-name">Join Us</span><span class="chip-desc">Invite a friend, auditions</span></div>
+      </div>
+      <p>Bookmark the app's link on your phone's home screen and you've got the whole choir in your pocket.</p>
+    </section>
+
+    <section class="chapter" id="home">
+      <div class="chapter-head"><span class="chapter-num">02</span><h2>Home &amp; Announcements</h2></div>
+      <p class="lede"><strong>Home</strong> shows whatever welcome message the director has posted — a good first stop when you open the app.</p>
+      <p><strong>Announcements</strong> is where day-to-day news lives. Anything the director marks <em>Pinned</em> always shows up first; everything else runs newest to oldest below it.</p>
+    </section>
+
+    <section class="chapter" id="schedule">
+      <div class="chapter-head"><span class="chapter-num">03</span><h2>Schedule</h2></div>
+      <p class="lede">Every rehearsal and event, each tagged with a type badge (Rehearsal, Performance, etc.) and its date and time.</p>
+      <ul class="plain">
+        <li>Tap <kbd class="ui">View Map</kbd> next to a location to open it in Google Maps.</li>
+        <li>Parking and entrance notes, when the director's added them, appear right under the location.</li>
+      </ul>
+    </section>
+
+    <section class="chapter" id="songs">
+      <div class="chapter-head"><span class="chapter-num">04</span><h2>Songs &amp; Parts</h2></div>
+      <p class="lede">The <strong>Songs</strong> page lists everything on this season's setlist. Each song's card shows its status, when it was last rehearsed, and — if the director added them — a rehearsal track or YouTube link you can open directly.</p>
+
+      <h3>Opening a song's parts</h3>
+      <ol class="steps">
+        <li>From <strong>Songs</strong>, tap the song's title or its <kbd class="ui">Parts &amp; Tracks</kbd> button.</li>
+        <li>Under <strong>Choose Your Part</strong>, find your voice part — Soprano&nbsp;1, Alto&nbsp;2, whatever's listed.</li>
+        <li>Use the inline player to listen right there, or tap <kbd class="ui">Download</kbd> to save the actual audio file to your device — handy for practicing offline or in the car.</li>
+      </ol>
+
+      <div class="callout"><strong>Play</strong> streams the track in your browser and doesn't use up phone storage. <strong>Download</strong> saves the real file, named after the part, so you can find it again later in your Downloads folder.</div>
+
+      <h3>Director Notes</h3>
+      <p>If the director has posted notes for a song — phrasing reminders, a marked-up score, whatever — they'll appear below the parts as their own downloadable PDF.</p>
+    </section>
+
+    <section class="chapter" id="documents">
+      <div class="chapter-head"><span class="chapter-num">05</span><h2>Documents</h2></div>
+      <p class="lede">Forms, handouts, and other downloads the director has posted, grouped into categories like Sheet Music or Forms. Tap any title to open it.</p>
+    </section>
+
+    <section class="chapter" id="volunteer">
+      <div class="chapter-head"><span class="chapter-num">06</span><h2>Volunteer Signups</h2></div>
+      <p class="lede">Open tasks list how many slots are filled out of how many are needed — first come, first served.</p>
+      <div class="callout">Since you're already signed in, this page pulls in your name and phone on its own — give it a moment after the page loads and you'll see them fill in under <strong>Your Email</strong>, no typing required.</div>
+      <ol class="steps">
+        <li>Find a task with open slots and tap <kbd class="ui">Sign Up</kbd>.</li>
+        <li>Check the name and phone number it filled in — edit either if something's out of date.</li>
+        <li>Tap <kbd class="ui">Confirm</kbd>. A task showing <kbd class="ui">Full</kbd> has no slots left.</li>
+      </ol>
+      <p>If the auto-fill doesn't kick in (or you'd rather look yourself up manually), type your email under <strong>Your Email</strong> and tap <kbd class="ui">Look Up</kbd> — or just fill in your name and phone by hand.</p>
+    </section>
+
+    <section class="chapter" id="absence">
+      <div class="chapter-head"><span class="chapter-num">07</span><h2>Report an Absence</h2></div>
+      <p class="lede">Same auto-fill as Volunteer — after a brief pause, your name, phone, and section/position fill in on their own from your login, so you're not retyping it every time.</p>
+      <ol class="steps">
+        <li>Double-check the auto-filled fields — they come from the roster and can be wrong or out of date.</li>
+        <li>Pick the date you'll be out and your section/position, add a note if you'd like, then tap <kbd class="ui">Submit</kbd>.</li>
+      </ol>
+      <p>Nothing filled in? Look yourself up by email under <strong>Your Email</strong>, or just fill in the form by hand.</p>
+      <p>Submitting notifies your section leader automatically — there's no separate email to send.</p>
+    </section>
+
+    <section class="chapter" id="myinfo">
+      <div class="chapter-head"><span class="chapter-num">08</span><h2>My Info</h2></div>
+      <p class="lede">After a brief pause, this page pulls up your own details automatically from your login — name, section/position, phone, and your attendance history, color-coded by status. No lookup required, though the same <strong>Your Email</strong> box is there if you ever need it.</p>
+      <p>This page also surfaces your section leader's contact card — tap to <kbd class="ui">Call</kbd>, <kbd class="ui">Text</kbd>, or <kbd class="ui">Email</kbd> them directly.</p>
+      <div class="callout">Something on this page wrong — a misspelled name, an old phone number? This page is read-only by design. Reach out to your section leader (right there on the same page) to get it corrected.</div>
+    </section>
+
+    <section class="chapter" id="recognition">
+      <div class="chapter-head"><span class="chapter-num">09</span><h2>Recognition</h2></div>
+      <p class="lede">A running feed of shout-outs the director posts for members — birthdays, milestones, a job well done.</p>
+    </section>
+
+    <section class="chapter" id="sponsors">
+      <div class="chapter-head"><span class="chapter-num">10</span><h2>Sponsors &amp; Giving</h2></div>
+      <p class="lede">A <kbd class="ui">Support the Choir</kbd> button links out to the donation page, followed by a list of current sponsors and their tier.</p>
+    </section>
+
+    <section class="chapter" id="join">
+      <div class="chapter-head"><span class="chapter-num">11</span><h2>Join Us</h2></div>
+      <p class="lede">Know someone who'd love to sing with us? Tap <kbd class="ui">Copy Link</kbd> to grab the registration link and paste it into a text or email.</p>
+      <p>This page also lists current audition opportunities, with a <kbd class="ui">Sign Up to Audition</kbd> button when one's open.</p>
+    </section>
+
+    <section class="chapter" id="countdown">
+      <div class="chapter-head"><span class="chapter-num">12</span><h2>Countdown</h2></div>
+      <p class="lede">When the director's set one, this page counts down live — days, hours, minutes, seconds — to the next big performance.</p>
+    </section>
+
+    <section class="chapter" id="faq">
+      <div class="chapter-head"><span class="chapter-num">13</span><h2>Tips &amp; FAQ</h2></div>
+      <dl class="faq">
+        <dt>Do I need an account?</dt>
+        <dd>Yes — log into My Apps Hub and open the choir app from there. That login is what lets Volunteer, Report Absence, and My Info recognize you automatically.</dd>
+
+        <dt>Why does it look like it's asking for my email?</dt>
+        <dd>It isn't, usually — give it a moment after the page loads and it fills in on its own, using the email you signed into My Apps Hub with. The email box is only there as a manual fallback, for the rare case the automatic lookup doesn't fire.</dd>
+
+        <dt>I looked up the wrong person — now what?</dt>
+        <dd>Tap <strong>Not you?</strong> next to the lookup result to clear it and start over.</dd>
+
+        <dt>The app doesn't recognize my email.</dt>
+        <dd>You can still use every page by hand — type your name, phone, and section directly into the form instead of relying on the lookup.</dd>
+
+        <dt>Does Download actually save the file, or does it just play it?</dt>
+        <dd>It saves it — tapping Download on a part track hands your device the real audio file, the same as downloading any attachment.</dd>
+      </dl>
+    </section>
+
+  </main>
+
+  <footer class="colophon">SOJO Choral Arts Seasons Chorale Choir — member handbook, built for our community.</footer>
+
+</div>
+
+<script>
+  (function () {
+    var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+    var sections = links.map(function (a) {
+      return document.getElementById(a.getAttribute('href').slice(1));
+    });
+
+    if (!('IntersectionObserver' in window)) return;
+
+    var observer = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        var idx = sections.indexOf(entry.target);
+        if (idx === -1) return;
+        if (entry.isIntersecting) {
+          links.forEach(function (l) { l.classList.remove('active'); });
+          links[idx].classList.add('active');
+        }
+      });
+    }, { rootMargin: '-15% 0px -70% 0px', threshold: 0 });
+
+    sections.forEach(function (s) { if (s) observer.observe(s); });
+  })();
+</script>
+</body>
+</html>
