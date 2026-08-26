@@ -29,9 +29,10 @@
       }
       el.innerHTML = rows.map(r => `
         <div class="card">
-          <h3>${r.Title || ''}</h3>
+          <h3><a href="song.html?id=${encodeURIComponent(r.Id)}">${r.Title || ''}</a></h3>
           ${r.Status ? `<span class="badge">${r.Status}</span>` : ''}
           ${r.LastRehearsedDate ? `<p>Last rehearsed: ${r.LastRehearsedDate}</p>` : ''}
+          <p><a class="btn" href="song.html?id=${encodeURIComponent(r.Id)}">Parts &amp; Tracks</a></p>
           ${r.RehearsalTrackURL ? `<p><a class="btn" href="${r.RehearsalTrackURL}" target="_blank" rel="noopener">Rehearsal Track</a></p>` : ''}
           ${r.YouTubeURL ? `<p><a class="btn" href="${r.YouTubeURL}" target="_blank" rel="noopener">Watch on YouTube</a></p>` : ''}
         </div>

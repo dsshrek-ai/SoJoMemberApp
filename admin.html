@@ -102,7 +102,7 @@
 <script>
   const TABLES = {
     Schedule: ['Date', 'Time', 'Type', 'Title', 'Location', 'ParkingNotes', 'EntranceNotes', 'Notes'],
-    Songs: ['Title', 'RehearsalTrackURL', 'YouTubeURL', 'LastRehearsedDate', 'Status'],
+    Songs: ['Title', 'FolderSlug', 'RehearsalTrackURL', 'YouTubeURL', 'LastRehearsedDate', 'Status'],
     Announcements: ['Date', 'Author', 'Message', 'Pinned'],
     VolunteerTasks: ['Date', 'TaskName', 'SlotsNeeded'],
     VolunteerSignups: ['Date', 'TaskName', 'VolunteerName', 'PhoneNumber', 'Email', 'Timestamp'],
@@ -113,12 +113,15 @@
     SectionLeaders: ['Position', 'LeaderName', 'LeaderEmail', 'LeaderPhone'],
     NavItems: ['Label', 'PageFile', 'SortOrder', 'Visible'],
     Documents: ['Title', 'Url', 'Category', 'SortOrder'],
+    // SongID matches a Songs row's Id (see the Songs table's Id, exposed by
+    // the `songs` public action); look that id up there when adding a row.
+    SongFiles: ['SongID', 'FileType', 'PartLabel', 'FileName', 'SortOrder'],
   };
   const LONG_TEXT_COLUMNS = new Set(['Message', 'Notes', 'Note', 'Value']);
   const DATE_COLUMNS = new Set(['Date', 'LastRehearsedDate']);
   const TIME_COLUMNS = new Set(['Time']);
   const POSITION_COLUMNS = new Set(['Position']);
-  const NUMBER_COLUMNS = new Set(['SortOrder']);
+  const NUMBER_COLUMNS = new Set(['SortOrder', 'SongID']);
   // Stored as a MySQL TINYINT (1/0), unlike Pinned's 'Y'/'N' text column below.
   const YES_NO_NUMERIC_COLUMNS = new Set(['Visible']);
   const POSITIONS = [
@@ -127,6 +130,8 @@
   ];
   const STATUS_COLUMNS = new Set(['Status']);
   const STATUSES = ['Active', 'On Hold'];
+  const FILE_TYPE_COLUMNS = new Set(['FileType']);
+  const FILE_TYPES = ['Track', 'Document'];
   // Stored as 'Y'/'N' text (see choir_announcements.pinned); the public site
   // only ever checks for an exact 'Y' (case-insensitive), so 'N' and '' are
   // equivalent to it — see announcements.html.
@@ -276,6 +281,14 @@
     if (STATUS_COLUMNS.has(col)) {
       const options = ['', ...STATUSES].map(s =>
         `<option value="${s}" ${s === value ? 'selected' : ''}>${s || '(none)'}</option>`
+      ).join('');
+      return `<select data-col="${col}">${options}</select>`;
+    }
+    if (FILE_TYPE_COLUMNS.has(col)) {
+      // No blank option -- the column is a NOT NULL ENUM('Track','Document'),
+      // so an empty string would fail the insert/update outright.
+      const options = FILE_TYPES.map(t =>
+        `<option value="${t}" ${t === value || (!value && t === 'Track') ? 'selected' : ''}>${t}</option>`
       ).join('');
       return `<select data-col="${col}">${options}</select>`;
     }

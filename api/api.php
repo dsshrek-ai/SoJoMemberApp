@@ -102,8 +102,8 @@ $DATA_TABLES = [
     'Notes' => 'notes',
   ]],
   'Songs' => ['table' => 'choir_songs', 'columns' => [
-    'Title' => 'title', 'RehearsalTrackURL' => 'rehearsal_track_url', 'YouTubeURL' => 'youtube_url',
-    'LastRehearsedDate' => 'last_rehearsed_date', 'Status' => 'status',
+    'Title' => 'title', 'FolderSlug' => 'folder_slug', 'RehearsalTrackURL' => 'rehearsal_track_url',
+    'YouTubeURL' => 'youtube_url', 'LastRehearsedDate' => 'last_rehearsed_date', 'Status' => 'status',
   ]],
   'Announcements' => ['table' => 'choir_announcements', 'columns' => [
     'Date' => 'entry_date', 'Author' => 'author', 'Message' => 'message', 'Pinned' => 'pinned',
@@ -143,11 +143,18 @@ $DATA_TABLES = [
   'Documents' => ['table' => 'choir_documents', 'columns' => [
     'Title' => 'title', 'Url' => 'url', 'Category' => 'category', 'SortOrder' => 'sort_order',
   ]],
+  // Part tracks + director notes for a song's own index page (song.html).
+  // FileName is just the filename -- the real URL is built at read time from
+  // SONG_FILES_BASE_URL + the owning song's FolderSlug (see the `song` action).
+  'SongFiles' => ['table' => 'choir_song_files', 'columns' => [
+    'SongID' => 'song_id', 'FileType' => 'file_type', 'PartLabel' => 'part_label',
+    'FileName' => 'filename', 'SortOrder' => 'sort_order',
+  ]],
 ];
 
 // Columns that must round-trip as JSON numbers, not strings (so `>=` comparisons
 // in the front end work correctly instead of comparing lexically).
-$NUMERIC_COLUMNS = ['SlotsNeeded', 'SortOrder', 'Visible'];
+$NUMERIC_COLUMNS = ['SlotsNeeded', 'SortOrder', 'Visible', 'SongID'];
 
 // Columns backed by a real SQL DATE column (see schema.sql). MySQL rejects an
 // empty string for a DATE column outright (it's not a valid date), so a
@@ -511,15 +518,51 @@ switch ($action) {
   // -- Public reads (GET) --
 
   case 'schedule':
-  case 'songs':
   case 'announcements':
   case 'recognition':
   case 'sponsors': {
     $sheetByAction = [
-      'schedule' => 'Schedule', 'songs' => 'Songs',
+      'schedule' => 'Schedule',
       'announcements' => 'Announcements', 'recognition' => 'Recognition', 'sponsors' => 'Sponsors',
     ];
     respond(tableRows($sheetByAction[$action]));
+  }
+
+  // Includes each row's id (as Id) so songs.html can link to song.html?id=...
+  case 'songs': {
+    $rows = array_map(function ($row) {
+      $row['Id'] = $row['_row'];
+      unset($row['_row']);
+      return $row;
+    }, tableRowsWithId('Songs'));
+    respond($rows);
+  }
+
+  // One song's part tracks + director notes for song.html. Each SongFiles row
+  // comes back with a real Url built from SONG_FILES_BASE_URL + the song's
+  // FolderSlug + the row's FileName -- see the SongFiles comment in $DATA_TABLES.
+  case 'song': {
+    $id = (int)($_GET['id'] ?? 0);
+    if ($id <= 0) {
+      fail('Missing song id', 400);
+    }
+    $song = null;
+    foreach (tableRowsWithId('Songs') as $row) {
+      if ($row['_row'] === $id) { $song = $row; break; }
+    }
+    if (!$song) {
+      fail('Song not found', 404);
+    }
+    $folder = trim((string)($song['FolderSlug'] ?? ''));
+    $files = array_values(array_filter(tableRows('SongFiles'), function ($f) use ($id) {
+      return (int)$f['SongID'] === $id;
+    }));
+    usort($files, function ($a, $b) { return $a['SortOrder'] <=> $b['SortOrder']; });
+    $files = array_map(function ($f) use ($folder) {
+      $f['Url'] = $folder !== '' ? SONG_FILES_BASE_URL . '/' . rawurlencode($folder) . '/' . rawurlencode($f['FileName']) : null;
+      return $f;
+    }, $files);
+    respond(['Title' => $song['Title'], 'Status' => $song['Status'], 'Files' => $files]);
   }
 
   // Nav links for the top of every page — admin-editable order/visibility.

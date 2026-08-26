@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Song | Choir App</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#main-content" class="skip-link">Skip to main content</a>
+<header class="site-header">
+  <h1>SOJO Choral Arts Seasons Chorale Choir</h1>
+  <nav class="site-nav" id="site-nav"></nav>
+</header>
+<main id="main-content">
+  <p><a href="songs.html">&larr; Back to Song Library</a></p>
+  <div id="content">Loading song&hellip;</div>
+</main>
+<footer class="site-footer">Choir App &mdash; built for our community</footer>
+<script src="js/api.js"></script>
+<script>
+  (async () => {
+    const el = document.getElementById('content');
+    const id = new URLSearchParams(window.location.search).get('id');
+    if (!id) {
+      el.innerHTML = `<p class="placeholder-note">No song selected.</p>`;
+      return;
+    }
+    if (!isConfigured()) {
+      showPlaceholder(el, "Couldn't load right now — check your connection and try refreshing.");
+      return;
+    }
+    try {
+      const res = await fetch(`${CONFIG.API_URL}?action=song&id=${encodeURIComponent(id)}`);
+      if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+      const song = await res.json();
+      const tracks = (song.Files || []).filter(f => f.FileType !== 'Document');
+      const documents = (song.Files || []).filter(f => f.FileType === 'Document');
+      el.innerHTML = `
+        <h2>${escapeHtml(song.Title || '')}</h2>
+        ${!tracks.length && !documents.length ? `<p class="placeholder-note">No parts uploaded yet for this song.</p>` : ''}
+        ${tracks.length ? `
+          <div class="card">
+            <h3>Choose Your Part</h3>
+            <ul>
+              ${tracks.map(t => `
+                <li>
+                  ${escapeHtml(t.PartLabel || 'Track')}
+                  ${t.Url ? `
+                    <audio controls preload="none" src="${escapeHtml(t.Url)}"></audio>
+                    <a class="btn" href="${escapeHtml(t.Url)}" download>Download</a>
+                  ` : ''}
+                </li>
+              `).join('')}
+            </ul>
+          </div>
+        ` : ''}
+        ${documents.length ? `
+          <div class="card">
+            <h3>Director Notes</h3>
+            <ul>
+              ${documents.map(d => `<li><a href="${escapeHtml(d.Url)}" target="_blank" rel="noopener">${escapeHtml(d.PartLabel || 'Director Notes')}</a></li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+      `;
+    } catch (e) {
+      showPlaceholder(el, "Couldn't load right now — check your connection and try refreshing.");
+    }
+  })();
+</script>
+</body>
+</html>
