@@ -48,7 +48,7 @@
                   ${escapeHtml(t.PartLabel || 'Track')}
                   ${t.Url ? `
                     <audio controls preload="none" src="${escapeHtml(t.Url)}"></audio>
-                    <a class="btn" href="${escapeHtml(t.Url)}" download>Download</a>
+                    <a class="btn" href="${escapeHtml(t.Url)}" download="${escapeHtml(t.FileName || '')}" data-force-download>Download</a>
                   ` : ''}
                 </li>
               `).join('')}
@@ -64,10 +64,42 @@
           </div>
         ` : ''}
       `;
+      wireForceDownloads(el);
     } catch (e) {
       showPlaceholder(el, "Couldn't load right now — check your connection and try refreshing.");
     }
   })();
+
+  // song.html (GitHub Pages) links to files on seniorfamily.org -- a
+  // cross-origin target, so the plain `download` attribute is ignored by
+  // browsers and clicking would just open the audio player instead of
+  // saving. Pulling the file in via fetch()+Blob and saving it from there
+  // works regardless of origin, but needs the file host to allow
+  // cross-origin reads (Access-Control-Allow-Origin on choir-song-files/).
+  // If that isn't set up yet, fall back to opening the file directly,
+  // same as before this existed.
+  function wireForceDownloads(container) {
+    container.querySelectorAll('a[data-force-download]').forEach(link => {
+      link.addEventListener('click', async (ev) => {
+        ev.preventDefault();
+        try {
+          const res = await fetch(link.href);
+          if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+          const blob = await res.blob();
+          const blobUrl = URL.createObjectURL(blob);
+          const tempLink = document.createElement('a');
+          tempLink.href = blobUrl;
+          tempLink.download = link.getAttribute('download') || '';
+          document.body.appendChild(tempLink);
+          tempLink.click();
+          tempLink.remove();
+          URL.revokeObjectURL(blobUrl);
+        } catch (e) {
+          window.open(link.href, '_blank');
+        }
+      });
+    });
+  }
 </script>
 </body>
 </html>

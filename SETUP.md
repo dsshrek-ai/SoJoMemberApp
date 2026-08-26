@@ -156,6 +156,19 @@ this app, these files are real uploads, not pasted links:
 at read time — nothing is stored as a full URL, so renaming `SONG_FILES_BASE_URL` or a song's
 `FolderSlug` only requires updating that one field, not every row.
 
+5. `song.html` itself is served from GitHub Pages, a different origin than the files on
+   `seniorfamily.org` — so the Download button has to fetch the file via JavaScript and save it
+   from there (plain cross-origin `<a download>` links are ignored by browsers). That needs the
+   file host to allow cross-origin reads: create/upload an `.htaccess` file directly inside the
+   `SONG_FILES_BASE_URL` folder (e.g. `choir-song-files/.htaccess`) containing:
+   ```
+   <IfModule mod_headers.c>
+     Header set Access-Control-Allow-Origin "*"
+   </IfModule>
+   ```
+   Until this is in place, Download falls back to just opening the file in a new tab (same as
+   before this fix).
+
 ## A note on multi-choir support
 
 An attempt to let one deployment serve several choirs (see `ROADMAP.md`) was rolled back before
