@@ -133,6 +133,29 @@ file already lives, e.g. Google Drive). Manage entries via **Documents** in `adm
 is the link text, `Url` the link, `Category` optionally groups related documents together (e.g.
 "Sheet Music", "Forms"), `SortOrder` controls order within a category.
 
+## Song parts + director notes (song.html)
+
+Each song in the Song Library can now link to its own page listing part tracks (Soprano, Alto,
+Tenor, Bass, etc. — play or download) and director notes PDFs. Unlike every other URL field in
+this app, these files are real uploads, not pasted links:
+
+1. Run the "per-song part tracks + director notes" section of `api/schema.sql` in phpMyAdmin —
+   adds `choir_songs.folder_slug` and creates `choir_song_files`.
+2. Add `SONG_FILES_BASE_URL` to `api/config.php` (see `config.example.php`) — a public URL on
+   your own host, e.g. `https://seniorfamily.org/choir-song-files`. Create that folder via
+   FTP/File Manager if it doesn't exist yet.
+3. For each song, pick a folder name and set it as that song's `FolderSlug` in `admin.html`'s
+   **Songs** table, then FTP a folder with that exact name into `SONG_FILES_BASE_URL`, containing
+   that song's audio files and director-notes PDF.
+4. In `admin.html`'s **SongFiles** table, add one row per file: `SongID` (the song's `Id` — visible
+   in the songs API response, or count rows in the Songs table), `FileType` (`Track` or
+   `Document`), `PartLabel` (e.g. "Soprano", "Director Notes"), `FileName` (must exactly match the
+   uploaded file's name), `SortOrder`.
+
+`song.html?id={SongID}` builds each file's real URL as `SONG_FILES_BASE_URL/{FolderSlug}/{FileName}`
+at read time — nothing is stored as a full URL, so renaming `SONG_FILES_BASE_URL` or a song's
+`FolderSlug` only requires updating that one field, not every row.
+
 ## A note on multi-choir support
 
 An attempt to let one deployment serve several choirs (see `ROADMAP.md`) was rolled back before

@@ -188,3 +188,21 @@ CREATE TABLE IF NOT EXISTS choir_documents (
   category    VARCHAR(100) NULL,
   sort_order  INT NOT NULL DEFAULT 0
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------- SCHEMA CHANGE: per-song part tracks + director notes ----------
+-- Run once. Unlike every other URL column in this schema, these files are
+-- real uploads (FTP'd into a per-song folder on the same host as api.php),
+-- not pasted links -- FolderSlug + FileName let api.php build the real URL
+-- from SONG_FILES_BASE_URL (see config.php) instead of storing one.
+
+ALTER TABLE choir_songs ADD COLUMN folder_slug VARCHAR(100) NULL AFTER title;
+
+CREATE TABLE IF NOT EXISTS choir_song_files (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  song_id     INT NOT NULL,
+  file_type   ENUM('Track','Document') NOT NULL DEFAULT 'Track',
+  part_label  VARCHAR(100) NULL,
+  filename    VARCHAR(255) NOT NULL,
+  sort_order  INT NOT NULL DEFAULT 0,
+  FOREIGN KEY (song_id) REFERENCES choir_songs(id) ON DELETE CASCADE
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

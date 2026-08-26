@@ -22,3 +22,10 @@ define('FROM_EMAIL', 'noreply@seniorfamily.org');
 // and myinfo.html. Only read actions (getSingers/getConfig) are called, so
 // unlike sojo-app's config.php, no ADMIN_PIN is needed here.
 define('APPS_SCRIPT_URL', 'PASTE_THE_SAME_APPS_SCRIPT_WEB_APP_URL_SOJO_APP_USES');
+
+// Base URL for per-song part-track/director-notes files. Each song gets a
+// folder here (uploaded via FTP/File Manager, folder name = that song's
+// FolderSlug in the Songs admin table); files inside it are looked up by
+// filename only (SongFiles.FileName) -- api.php builds the real URL as
+// SONG_FILES_BASE_URL/{FolderSlug}/{FileName}. No trailing slash.
+define('SONG_FILES_BASE_URL', 'https://seniorfamily.org/choir-song-files');
