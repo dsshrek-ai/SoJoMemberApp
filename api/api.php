@@ -108,12 +108,34 @@ function requireMemberAccess(array $user): void {
   }
 }
 
+// Best-effort usage logging (see app_usage_log in My Apps Hub's schema.sql —
+// shared across every MyDataWorld app, one row per user per app per day,
+// upserted on each successful access). Wrapped in try/catch so a missing
+// table (e.g. before that schema change has been run here) never breaks a
+// member-facing request — this is purely for admin-side usage reporting.
+function logAppUsage(int $userId): void {
+  try {
+    $appKey = 'south-jordan-choral-arts';
+    $stmt = db()->prepare(
+      'INSERT INTO app_usage_log (user_id, app_key, access_date, first_seen_at, last_seen_at, hit_count)
+       VALUES (?, ?, CURDATE(), NOW(), NOW(), 1)
+       ON DUPLICATE KEY UPDATE last_seen_at = NOW(), hit_count = hit_count + 1'
+    );
+    $stmt->bind_param('is', $userId, $appKey);
+    $stmt->execute();
+    $stmt->close();
+  } catch (mysqli_sql_exception $e) {
+    // Best-effort — see comment above.
+  }
+}
+
 // Every member-facing action calls this first — a valid MyDataWorld login
 // alone isn't enough, the account also needs an app_access grant for this
 // app specifically (same model requireChoirAdminAccess already uses).
 function requireMember(): array {
   $user = requireUser();
   requireMemberAccess($user);
+  logAppUsage($user['id']);
   return $user;
 }
 

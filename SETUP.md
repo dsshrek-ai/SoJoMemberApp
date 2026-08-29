@@ -196,6 +196,24 @@ anyone, no login at all. After this, a member who bookmarked that link directly 
 launching through the Hub) hits the login-required card the next time their saved token expires —
 worth a heads-up via Announcements so it doesn't look broken.
 
+## Usage logging
+
+Every successful `requireMember()` check (i.e. every real member-facing action) also upserts a row
+into `app_usage_log` — one row per user per calendar day, with a running `hit_count` and
+first/last-seen times for that day. This table lives in **My Apps Hub's** `schema.sql`, not this
+app's own — it's shared across every MyDataWorld app by design (`app_key` says which app logged the
+row), so run that schema change there before this logging does anything. Until it's run, logging
+fails silently (caught, not surfaced) and the app behaves exactly as before — nothing breaks.
+
+Usage by day for this app:
+```sql
+SELECT access_date, COUNT(DISTINCT user_id) AS active_members
+FROM app_usage_log
+WHERE app_key = 'south-jordan-choral-arts'
+GROUP BY access_date
+ORDER BY access_date;
+```
+
 ## A note on multi-choir support
 
 An attempt to let one deployment serve several choirs (see `ROADMAP.md`) was rolled back before
