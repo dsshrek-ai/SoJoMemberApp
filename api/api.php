@@ -151,6 +151,7 @@ $DATA_TABLES = [
   'Songs' => ['table' => 'choir_songs', 'columns' => [
     'Title' => 'title', 'FolderSlug' => 'folder_slug', 'RehearsalTrackURL' => 'rehearsal_track_url',
     'YouTubeURL' => 'youtube_url', 'LastRehearsedDate' => 'last_rehearsed_date', 'Status' => 'status',
+    'Sequence' => 'sequence',
   ]],
   'Announcements' => ['table' => 'choir_announcements', 'columns' => [
     'Date' => 'entry_date', 'Author' => 'author', 'Message' => 'message', 'Pinned' => 'pinned',
@@ -201,7 +202,7 @@ $DATA_TABLES = [
 
 // Columns that must round-trip as JSON numbers, not strings (so `>=` comparisons
 // in the front end work correctly instead of comparing lexically).
-$NUMERIC_COLUMNS = ['SlotsNeeded', 'SortOrder', 'Visible', 'SongID'];
+$NUMERIC_COLUMNS = ['SlotsNeeded', 'SortOrder', 'Visible', 'SongID', 'Sequence'];
 
 // Columns backed by a real SQL DATE column (see schema.sql). MySQL rejects an
 // empty string for a DATE column outright (it's not a valid date), so a
@@ -577,6 +578,8 @@ switch ($action) {
   }
 
   // Includes each row's id (as Id) so songs.html can link to song.html?id=...
+  // Ordered by the admin-set Sequence (ascending); songs left at 0 fall to the
+  // bottom, in title order.
   case 'songs': {
     requireMember();
     $rows = array_map(function ($row) {
@@ -584,6 +587,14 @@ switch ($action) {
       unset($row['_row']);
       return $row;
     }, tableRowsWithId('Songs'));
+    usort($rows, function ($a, $b) {
+      $sa = (int)($a['Sequence'] ?? 0) ?: PHP_INT_MAX;
+      $sb = (int)($b['Sequence'] ?? 0) ?: PHP_INT_MAX;
+      if ($sa !== $sb) {
+        return $sa <=> $sb;
+      }
+      return strcasecmp((string)$a['Title'], (string)$b['Title']);
+    });
     respond($rows);
   }
 

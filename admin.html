@@ -102,7 +102,7 @@
 <script>
   const TABLES = {
     Schedule: ['Date', 'Time', 'Type', 'Title', 'Location', 'ParkingNotes', 'EntranceNotes', 'Notes'],
-    Songs: ['Title', 'FolderSlug', 'RehearsalTrackURL', 'YouTubeURL', 'LastRehearsedDate', 'Status'],
+    Songs: ['Title', 'Sequence', 'FolderSlug', 'RehearsalTrackURL', 'YouTubeURL', 'LastRehearsedDate', 'Status'],
     Announcements: ['Date', 'Author', 'Message', 'Pinned'],
     VolunteerTasks: ['Date', 'TaskName', 'SlotsNeeded'],
     VolunteerSignups: ['Date', 'TaskName', 'VolunteerName', 'PhoneNumber', 'Email', 'Timestamp'],
@@ -121,7 +121,7 @@
   const DATE_COLUMNS = new Set(['Date', 'LastRehearsedDate']);
   const TIME_COLUMNS = new Set(['Time']);
   const POSITION_COLUMNS = new Set(['Position']);
-  const NUMBER_COLUMNS = new Set(['SortOrder', 'SongID']);
+  const NUMBER_COLUMNS = new Set(['SortOrder', 'SongID', 'Sequence']);
   // Stored as a MySQL TINYINT (1/0), unlike Pinned's 'Y'/'N' text column below.
   const YES_NO_NUMERIC_COLUMNS = new Set(['Visible']);
   const POSITIONS = [

@@ -169,6 +169,20 @@ at read time — nothing is stored as a full URL, so renaming `SONG_FILES_BASE_U
    Until this is in place, Download falls back to just opening the file in a new tab (same as
    before this fix).
 
+## Song display order (Sequence)
+
+The Song Library used to list songs in the order they were added (row id). There's now an
+admin-set **Sequence** so the director can order songs deliberately (e.g. concert running order).
+
+1. Run the "song display order" section of `api/schema.sql` in phpMyAdmin — one `ALTER TABLE`
+   that adds `choir_songs.sequence` (`INT NOT NULL DEFAULT 0`). Do this **before** re-uploading
+   `api/api.php`, or at least before adding/editing a song in `admin.html` — until the column
+   exists, an admin save on the Songs table will fail with "Unknown column 'sequence'".
+2. Re-upload `api/api.php` and push the repo (for `admin.html`).
+3. In `admin.html`'s **Songs** table, set `Sequence` on the songs you want ordered — `1`, `2`,
+   `3`, … Songs left at `0` drop to the bottom of the list, in title order; numbered songs sort
+   ascending above them.
+
 ## SSO lock-down (every member page now requires login)
 
 Every action in `api/api.php` except `login`/`logout`/`whoAmI` now calls `requireMember()` —

@@ -206,3 +206,12 @@ CREATE TABLE IF NOT EXISTS choir_song_files (
   sort_order  INT NOT NULL DEFAULT 0,
   FOREIGN KEY (song_id) REFERENCES choir_songs(id) ON DELETE CASCADE
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---------- SCHEMA CHANGE: song display order ----------
+-- Run once. The Song Library was ordered by row id (insertion order). This adds
+-- an admin-set Sequence so the director can put songs in a deliberate order
+-- (e.g. concert running order). Songs left at 0 fall to the bottom, in title
+-- order; numbered songs sort ascending above them. Edit it in admin.html under
+-- Songs.
+
+ALTER TABLE choir_songs ADD COLUMN sequence INT NOT NULL DEFAULT 0 AFTER status;
