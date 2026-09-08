@@ -169,6 +169,20 @@ at read time — nothing is stored as a full URL, so renaming `SONG_FILES_BASE_U
    Until this is in place, Download falls back to just opening the file in a new tab (same as
    before this fix).
 
+## Song display order (Sequence)
+
+The Song Library used to list songs in the order they were added (row id). There's now an
+admin-set **Sequence** so the director can order songs deliberately (e.g. concert running order).
+
+1. Run the "song display order" section of `api/schema.sql` in phpMyAdmin — one `ALTER TABLE`
+   that adds `choir_songs.sequence` (`INT NOT NULL DEFAULT 0`). Do this **before** re-uploading
+   `api/api.php`, or at least before adding/editing a song in `admin.html` — until the column
+   exists, an admin save on the Songs table will fail with "Unknown column 'sequence'".
+2. Re-upload `api/api.php` and push the repo (for `admin.html`).
+3. In `admin.html`'s **Songs** table, set `Sequence` on the songs you want ordered — `1`, `2`,
+   `3`, … Songs left at `0` drop to the bottom of the list, in title order; numbered songs sort
+   ascending above them.
+
 ## SSO lock-down (every member page now requires login)
 
 Every action in `api/api.php` except `login`/`logout`/`whoAmI` now calls `requireMember()` —
@@ -195,6 +209,24 @@ password alone isn't enough, `login` doesn't check `app_access` but every actual
 anyone, no login at all. After this, a member who bookmarked that link directly (instead of always
 launching through the Hub) hits the login-required card the next time their saved token expires —
 worth a heads-up via Announcements so it doesn't look broken.
+
+## Usage logging
+
+Every successful `requireMember()` check (i.e. every real member-facing action) also upserts a row
+into `app_usage_log` — one row per user per calendar day, with a running `hit_count` and
+first/last-seen times for that day. This table lives in **My Apps Hub's** `schema.sql`, not this
+app's own — it's shared across every MyDataWorld app by design (`app_key` says which app logged the
+row), so run that schema change there before this logging does anything. Until it's run, logging
+fails silently (caught, not surfaced) and the app behaves exactly as before — nothing breaks.
+
+Usage by day for this app:
+```sql
+SELECT access_date, COUNT(DISTINCT user_id) AS active_members
+FROM app_usage_log
+WHERE app_key = 'south-jordan-choral-arts'
+GROUP BY access_date
+ORDER BY access_date;
+```
 
 ## A note on multi-choir support
 
