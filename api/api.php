@@ -336,6 +336,44 @@ function getVolunteerTasksWithPhones(): array {
   }, $tasks);
 }
 
+// ---- Admin reports ----
+
+// Volunteer Signups report: every task dated within [from, to] (inclusive;
+// an empty `to` means no end date), each with the people signed up for it.
+// Sorted by date, then task name; volunteers within a task sorted by name.
+// Signups match tasks by date + task name, same as getVolunteerStatus().
+function getVolunteerSignupsReport(string $from, string $to): array {
+  $conn = db();
+  $where = 'entry_date >= ?' . ($to !== '' ? ' AND entry_date <= ?' : '');
+  $params = $to !== '' ? [$from, $to] : [$from];
+  $types = str_repeat('s', count($params));
+
+  $stmt = $conn->prepare("SELECT entry_date, task_name, slots_needed FROM choir_volunteer_tasks
+                          WHERE $where ORDER BY entry_date, task_name");
+  $stmt->bind_param($types, ...$params);
+  $stmt->execute();
+  $tasks = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+  $stmt->close();
+
+  $stmt = $conn->prepare("SELECT entry_date, task_name, volunteer_name, phone_number FROM choir_volunteer_signups
+                          WHERE $where ORDER BY volunteer_name");
+  $stmt->bind_param($types, ...$params);
+  $stmt->execute();
+  $signups = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+  $stmt->close();
+
+  return array_map(function ($task) use ($signups) {
+    $volunteers = [];
+    foreach ($signups as $s) {
+      if ($s['entry_date'] === $task['entry_date'] && $s['task_name'] === $task['task_name']) {
+        $volunteers[] = ['Name' => $s['volunteer_name'], 'PhoneNumber' => $s['phone_number']];
+      }
+    }
+    return ['Date' => $task['entry_date'], 'TaskName' => $task['task_name'],
+            'SlotsNeeded' => (int)$task['slots_needed'], 'Volunteers' => $volunteers];
+  }, $tasks);
+}
+
 // Named lock mirrors the old Apps Script LockService: only one claim can be
 // evaluated+inserted at a time, so two people can't fill the last slot at once.
 function claimSlot(array $body): array {
@@ -787,6 +825,22 @@ switch ($action) {
     $user = requireUser();
     requireChoirAdminAccess($user);
     respond(['ok' => true, 'rows' => getVolunteerTasksWithPhones()]);
+  }
+
+  case 'adminReport': {
+    $user = requireUser();
+    requireChoirAdminAccess($user);
+    $report = (string)($body['report'] ?? '');
+    $from = (string)($body['from'] ?? '');
+    $to = (string)($body['to'] ?? '');
+    $isDate = function ($d) { return (bool)preg_match('/^\d{4}-\d{2}-\d{2}$/', $d); };
+    if (!$isDate($from) || ($to !== '' && !$isDate($to))) {
+      respond(['ok' => false, 'reason' => 'invalid-date']);
+    }
+    if ($report === 'volunteerSignups') {
+      respond(['ok' => true, 'rows' => getVolunteerSignupsReport($from, $to)]);
+    }
+    respond(['ok' => false, 'reason' => 'unknown-report']);
   }
 
   case 'adminAdd': {
