@@ -103,6 +103,11 @@ ALTER TABLE choir_absences          ADD COLUMN phone_number VARCHAR(30) NULL AFT
 -- info). Nullable -- populate via admin.html same as leader_name/leader_email.
 ALTER TABLE choir_section_leaders ADD COLUMN leader_phone VARCHAR(20) NULL AFTER leader_email;
 
+-- Start time for a volunteer task, so several setups on the same date list in
+-- the order they happen. Stored pre-formatted as "7:00 PM" text, same as
+-- choir_schedule.time_text. Nullable -- untimed tasks sort after timed ones.
+ALTER TABLE choir_volunteer_tasks ADD COLUMN time_text VARCHAR(20) NULL AFTER entry_date;
+
 CREATE TABLE IF NOT EXISTS choir_recognition (
   id           INT AUTO_INCREMENT PRIMARY KEY,
   entry_date   DATE NULL,

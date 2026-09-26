@@ -105,7 +105,7 @@
       return `
         <div class="card">
           <h3>${escapeHtml(r.TaskName)}</h3>
-          <p><strong>${escapeHtml(r.Date)}</strong></p>
+          <p><strong>${escapeHtml(r.Date)}</strong>${r.Time ? ' at ' + escapeHtml(r.Time) : ''}</p>
           <p>${r.SlotsFilled ?? 0} of ${r.SlotsNeeded ?? 0} slots filled</p>
           <div class="signup-actions" data-date="${escapeHtml(r.Date)}" data-task="${escapeHtml(r.TaskName)}">
             <button class="btn signup-btn" ${full ? 'disabled' : ''}>${full ? 'Full' : 'Sign Up'}</button>

@@ -157,7 +157,7 @@ $DATA_TABLES = [
     'Date' => 'entry_date', 'Author' => 'author', 'Message' => 'message', 'Pinned' => 'pinned',
   ]],
   'VolunteerTasks' => ['table' => 'choir_volunteer_tasks', 'columns' => [
-    'Date' => 'entry_date', 'TaskName' => 'task_name', 'SlotsNeeded' => 'slots_needed',
+    'Date' => 'entry_date', 'Time' => 'time_text', 'TaskName' => 'task_name', 'SlotsNeeded' => 'slots_needed',
   ]],
   'VolunteerSignups' => ['table' => 'choir_volunteer_signups', 'columns' => [
     'Date' => 'entry_date', 'TaskName' => 'task_name', 'VolunteerName' => 'volunteer_name',
@@ -312,20 +312,59 @@ function getSetting(string $key): ?string {
 
 // ---- Volunteer tasks (public status + admin phone rollup) ----
 
+// Minutes past midnight for a "7:00 PM"-style time_text, or null if blank or
+// unparseable. Text times don't sort correctly as strings ("10:00 AM" < "9:00 AM").
+function timeTextToMinutes(?string $time): ?int {
+  if (!preg_match('/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i', trim((string)$time), $m)) {
+    return null;
+  }
+  $h = (int)$m[1] % 12;
+  if (strtoupper($m[3]) === 'PM') {
+    $h += 12;
+  }
+  return $h * 60 + (int)$m[2];
+}
+
+// Sorts task rows (keyed Date/Time/TaskName) chronologically: by date, then
+// start time, then name. Undated tasks go last; untimed tasks go after the
+// timed ones on the same date.
+function sortVolunteerTasks(array $tasks): array {
+  usort($tasks, function ($a, $b) {
+    $dateA = (string)($a['Date'] ?? '');
+    $dateB = (string)($b['Date'] ?? '');
+    if ($dateA !== $dateB) {
+      if ($dateA === '') {
+        return 1;
+      }
+      if ($dateB === '') {
+        return -1;
+      }
+      return strcmp($dateA, $dateB);
+    }
+    $minA = timeTextToMinutes($a['Time'] ?? null) ?? PHP_INT_MAX;
+    $minB = timeTextToMinutes($b['Time'] ?? null) ?? PHP_INT_MAX;
+    if ($minA !== $minB) {
+      return $minA <=> $minB;
+    }
+    return strcasecmp((string)($a['TaskName'] ?? ''), (string)($b['TaskName'] ?? ''));
+  });
+  return $tasks;
+}
+
 function getVolunteerStatus(): array {
-  $tasks = tableRows('VolunteerTasks');
+  $tasks = sortVolunteerTasks(tableRows('VolunteerTasks'));
   $signups = tableRows('VolunteerSignups');
   return array_map(function ($task) use ($signups) {
     $filled = count(array_filter($signups, function ($s) use ($task) {
       return $s['Date'] === $task['Date'] && $s['TaskName'] === $task['TaskName'];
     }));
-    return ['Date' => $task['Date'], 'TaskName' => $task['TaskName'],
+    return ['Date' => $task['Date'], 'Time' => $task['Time'], 'TaskName' => $task['TaskName'],
             'SlotsNeeded' => $task['SlotsNeeded'], 'SlotsFilled' => $filled];
   }, $tasks);
 }
 
 function getVolunteerTasksWithPhones(): array {
-  $tasks = tableRowsWithId('VolunteerTasks');
+  $tasks = sortVolunteerTasks(tableRowsWithId('VolunteerTasks'));
   $signups = tableRows('VolunteerSignups');
   return array_map(function ($task) use ($signups) {
     $phones = array_values(array_filter(array_map(function ($s) use ($task) {
@@ -340,16 +379,17 @@ function getVolunteerTasksWithPhones(): array {
 
 // Volunteer Signups report: every task dated within [from, to] (inclusive;
 // an empty `to` means no end date), each with the people signed up for it.
-// Sorted by date, then task name; volunteers within a task sorted by name.
-// Signups match tasks by date + task name, same as getVolunteerStatus().
+// Sorted by date, then start time, then task name; volunteers within a task
+// sorted by name. Signups match tasks by date + task name, same as
+// getVolunteerStatus().
 function getVolunteerSignupsReport(string $from, string $to): array {
   $conn = db();
   $where = 'entry_date >= ?' . ($to !== '' ? ' AND entry_date <= ?' : '');
   $params = $to !== '' ? [$from, $to] : [$from];
   $types = str_repeat('s', count($params));
 
-  $stmt = $conn->prepare("SELECT entry_date, task_name, slots_needed FROM choir_volunteer_tasks
-                          WHERE $where ORDER BY entry_date, task_name");
+  $stmt = $conn->prepare("SELECT entry_date, time_text, task_name, slots_needed FROM choir_volunteer_tasks
+                          WHERE $where");
   $stmt->bind_param($types, ...$params);
   $stmt->execute();
   $tasks = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
@@ -362,16 +402,16 @@ function getVolunteerSignupsReport(string $from, string $to): array {
   $signups = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
   $stmt->close();
 
-  return array_map(function ($task) use ($signups) {
+  return sortVolunteerTasks(array_map(function ($task) use ($signups) {
     $volunteers = [];
     foreach ($signups as $s) {
       if ($s['entry_date'] === $task['entry_date'] && $s['task_name'] === $task['task_name']) {
         $volunteers[] = ['Name' => $s['volunteer_name'], 'PhoneNumber' => $s['phone_number']];
       }
     }
-    return ['Date' => $task['entry_date'], 'TaskName' => $task['task_name'],
+    return ['Date' => $task['entry_date'], 'Time' => $task['time_text'], 'TaskName' => $task['task_name'],
             'SlotsNeeded' => (int)$task['slots_needed'], 'Volunteers' => $volunteers];
-  }, $tasks);
+  }, $tasks));
 }
 
 // Named lock mirrors the old Apps Script LockService: only one claim can be
