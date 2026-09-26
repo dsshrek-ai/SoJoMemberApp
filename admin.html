@@ -106,12 +106,13 @@
           <option value="attendanceByDay">Attendance by Day</option>
           <option value="frequentAbsences">Frequent Absences</option>
           <option value="appUsage">App Users by Day</option>
+          <option value="memberList">Member List</option>
         </select>
-        <div class="report-filters">
+        <div class="report-filters" id="report-filters">
           <label>From<br><input type="date" id="report-from"></label>
           <label>To<br><input type="date" id="report-to"></label>
         </div>
-        <p class="placeholder-note">Leave "From" or "To" blank for no limit on that end.</p>
+        <p class="placeholder-note" id="report-filters-note">Leave "From" or "To" blank for no limit on that end.</p>
         <p>
           <button id="report-run-btn" class="btn">Run Report</button>
           <button id="report-print-btn" class="btn">Print</button>
@@ -556,6 +557,10 @@
   // the last 30 days, today included.
   function applyReportDefaults() {
     const report = reportSelect.value;
+    // Member List isn't date-based, so hide the date filters for it.
+    const datesApply = report !== 'memberList';
+    document.getElementById('report-filters').style.display = datesApply ? '' : 'none';
+    document.getElementById('report-filters-note').style.display = datesApply ? '' : 'none';
     if (report === 'volunteerSignups') {
       reportFrom.value = todayIso();
       reportTo.value = '';
@@ -595,6 +600,8 @@
       renderAttendanceByDayReport(result);
     } else if (reportSelect.value === 'frequentAbsences') {
       renderFrequentAbsencesReport(result);
+    } else if (reportSelect.value === 'memberList') {
+      renderMemberListReport(result);
     } else if (reportSelect.value === 'appUsage') {
       renderAppUsageReport(result);
     } else {
@@ -637,6 +644,33 @@
         </table>
       </div>
     `;
+  }
+
+  function renderMemberListReport(result) {
+    const groups = [['Choir Admin', 'Choir Admins'], ['Section Leader', 'Section Leaders'], ['Member', 'Members']];
+    const sections = groups.map(([key, heading]) => {
+      const people = result.rows.filter(r => r.Group === key);
+      if (!people.length) return '';
+      const bodyHtml = people.map(r => `
+        <tr>
+          <td>${escapeHtml(r.Name)}</td>
+          <td>${escapeHtml(r.Position)}</td>
+          <td>${escapeHtml(r.PhoneNumber)}</td>
+        </tr>
+      `).join('');
+      return `
+        <h3>${heading} (${people.length})</h3>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th scope="col">Name</th><th scope="col">Position</th><th scope="col">Phone</th></tr></thead>
+            <tbody>${bodyHtml}</tbody>
+          </table>
+        </div>
+      `;
+    }).join('');
+    reportContainer.innerHTML = `<h2>Member List</h2>
+      <p><strong>${result.rows.length} people</strong> &middot; each listed once, in their highest group</p>
+      ${sections || '<p class="placeholder-note">No one found.</p>'}`;
   }
 
   function renderAppUsageReport(result) {

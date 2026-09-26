@@ -672,6 +672,79 @@ function getFrequentAbsencesReport(string $from, string $to): array {
   return ['dateCount' => count($dates), 'rows' => $rows];
 }
 
+// Member List report: everyone connected to the app, each person once,
+// grouped Choir Admins (choir-admin-panel access) > Section Leaders
+// (choir_section_leaders rows) > Members (south-jordan-choral-arts access),
+// highest group wins. People are matched across the three by email
+// (users.username is the login email). Name/position/phone come from the
+// SOJO roster where the email matches, falling back to the account's
+// display name / the SectionLeaders row; a section leader's own
+// leader_phone wins over the roster's. Sorted by name within each group.
+function getMemberListReport(): array {
+  $conn = db();
+  $roster = [];
+  foreach ((fetchAppsScript('getSingers')['singers'] ?? []) as $s) {
+    $email = mb_strtolower(trim((string)($s['email'] ?? '')));
+    if ($email !== '') $roster[$email] = $s;
+  }
+
+  $people = []; // email (or "leader:<id>" if no email) => row
+  $add = function (string $key, string $group, string $name, string $position, string $phone, string $email) use (&$people, $roster) {
+    if (isset($people[$key])) return; // already in a higher group
+    $singer = $email !== '' ? ($roster[mb_strtolower($email)] ?? null) : null;
+    if ($singer) {
+      $last = trim((string)($singer['lastname'] ?? ''));
+      $first = trim((string)($singer['firstname'] ?? ''));
+      if ($last !== '' || $first !== '') $name = $last !== '' && $first !== '' ? "$last, $first" : trim("$last$first");
+      if ($position === '') $position = (string)($singer['position'] ?? '');
+      if ($phone === '') {
+        $phone = trim((string)($singer['cellPhone'] ?? ''));
+        if ($phone === '') $phone = trim((string)($singer['homePhone'] ?? ''));
+      }
+    }
+    $people[$key] = ['Group' => $group, 'Name' => $name !== '' ? $name : $email,
+                     'Position' => $position, 'PhoneNumber' => $phone, 'Email' => $email];
+  };
+
+  $usersWithAccess = function (string $appKey) use ($conn): array {
+    $stmt = $conn->prepare(
+      'SELECT u.username, u.display_name FROM app_access aa
+       JOIN apps a ON a.id = aa.app_id JOIN users u ON u.id = aa.user_id
+       WHERE a.app_key = ?'
+    );
+    $stmt->bind_param('s', $appKey);
+    $stmt->execute();
+    $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+    $stmt->close();
+    return $rows;
+  };
+
+  foreach ($usersWithAccess('choir-admin-panel') as $u) {
+    $email = trim((string)$u['username']);
+    $add(mb_strtolower($email), 'Choir Admin', trim((string)$u['display_name']), '', '', $email);
+  }
+  $leaders = $conn->query('SELECT id, position, leader_name, leader_email, leader_phone FROM choir_section_leaders')
+                  ->fetch_all(MYSQLI_ASSOC);
+  foreach ($leaders as $l) {
+    $name = trim((string)$l['leader_name']);
+    $email = trim((string)$l['leader_email']);
+    if ($name === '' && $email === '') continue; // unfilled position
+    $key = $email !== '' ? mb_strtolower($email) : 'leader:' . $l['id'];
+    $add($key, 'Section Leader', $name, (string)$l['position'], trim((string)($l['leader_phone'] ?? '')), $email);
+  }
+  foreach ($usersWithAccess('south-jordan-choral-arts') as $u) {
+    $email = trim((string)$u['username']);
+    $add(mb_strtolower($email), 'Member', trim((string)$u['display_name']), '', '', $email);
+  }
+
+  $order = ['Choir Admin' => 0, 'Section Leader' => 1, 'Member' => 2];
+  $rows = array_values($people);
+  usort($rows, function ($a, $b) use ($order) {
+    return [$order[$a['Group']], mb_strtolower($a['Name'])] <=> [$order[$b['Group']], mb_strtolower($b['Name'])];
+  });
+  return ['rows' => $rows];
+}
+
 // App Users by Day report: distinct member-app users per day from the
 // shared app_usage_log (see logAppUsage -- only requireMember() actions log,
 // so admin-panel use isn't counted). Every day in [from, to] gets a row,
@@ -1005,6 +1078,9 @@ switch ($action) {
     if ($report === 'volunteerSignups') {
       // A blank `from` means "no start date" -- earliest valid MySQL DATE.
       respond(['ok' => true, 'rows' => getVolunteerSignupsReport($from !== '' ? $from : '1000-01-01', $to)]);
+    }
+    if ($report === 'memberList') {
+      respond(['ok' => true] + getMemberListReport());
     }
     if ($report === 'frequentAbsences') {
       respond(['ok' => true] + getFrequentAbsencesReport($from, $to));
