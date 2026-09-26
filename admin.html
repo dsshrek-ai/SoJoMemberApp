@@ -103,12 +103,13 @@
         <label for="report-select">Report</label>
         <select id="report-select">
           <option value="volunteerSignups">Volunteer Signups</option>
+          <option value="attendanceByDay">Attendance by Day</option>
         </select>
         <div class="report-filters">
           <label>From<br><input type="date" id="report-from"></label>
           <label>To<br><input type="date" id="report-to"></label>
         </div>
-        <p class="placeholder-note">Leave "To" blank to include everything from the start date on.</p>
+        <p class="placeholder-note">Leave "From" or "To" blank for no limit on that end.</p>
         <p>
           <button id="report-run-btn" class="btn">Run Report</button>
           <button id="report-print-btn" class="btn">Print</button>
@@ -536,16 +537,25 @@
     viewToggleBtn.textContent = showReports ? 'Tables' : 'Reports';
     if (showReports && !reportsInitialized) {
       reportsInitialized = true;
-      reportFrom.value = todayIso();
+      applyReportDefaults();
       runReport();
     }
   });
+
+  // Volunteer Signups looks ahead (today onward); Attendance by Day looks
+  // back (every date on the sheet through today -- later columns are
+  // upcoming rehearsals nobody's been marked for yet).
+  function applyReportDefaults() {
+    const isVolunteer = reportSelect.value === 'volunteerSignups';
+    reportFrom.value = isVolunteer ? todayIso() : '';
+    reportTo.value = isVolunteer ? '' : todayIso();
+  }
+  reportSelect.addEventListener('change', () => { applyReportDefaults(); runReport(); });
 
   document.getElementById('report-run-btn').addEventListener('click', runReport);
   document.getElementById('report-print-btn').addEventListener('click', () => window.print());
 
   async function runReport() {
-    if (!reportFrom.value) reportFrom.value = todayIso();
     reportContainer.innerHTML = 'Loading…';
     let result;
     try {
@@ -564,11 +574,52 @@
       }
       return;
     }
-    renderVolunteerSignupsReport(result.rows);
+    if (reportSelect.value === 'attendanceByDay') {
+      renderAttendanceByDayReport(result);
+    } else {
+      renderVolunteerSignupsReport(result.rows);
+    }
+  }
+
+  function reportRangeText() {
+    if (!reportFrom.value && !reportTo.value) return 'All dates';
+    return `${reportFrom.value ? formatReportDate(reportFrom.value) : 'Start'} – ${reportTo.value ? formatReportDate(reportTo.value) : 'onward'}`;
+  }
+
+  function renderAttendanceByDayReport(result) {
+    const total = result.participants;
+    const header = `<h2>Attendance by Day</h2>
+      <p>${escapeHtml(reportRangeText())}</p>
+      <p><strong>Total participants (SEQ 60 or less): ${total}</strong></p>`;
+    if (!result.rows.length) {
+      reportContainer.innerHTML = `${header}<p class="placeholder-note">No attendance dates in this range.</p>`;
+      return;
+    }
+    const bodyHtml = result.rows.map(r => `
+      <tr>
+        <td>${escapeHtml(formatReportDate(r.Date))}</td>
+        <td>${r.Present}</td>
+        <td>${total ? Math.round(r.Present / total * 100) + '%' : '–'}</td>
+        <td>${r.Absent}</td>
+        <td>${r.Exempt}</td>
+        <td>${r.NotMarked}</td>
+      </tr>
+    `).join('');
+    reportContainer.innerHTML = `${header}
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr>
+            <th scope="col">Date</th><th scope="col">Present</th><th scope="col">% Present</th>
+            <th scope="col">Absent</th><th scope="col">Exempt</th><th scope="col">Not Marked</th>
+          </tr></thead>
+          <tbody>${bodyHtml}</tbody>
+        </table>
+      </div>
+    `;
   }
 
   function renderVolunteerSignupsReport(tasks) {
-    const rangeText = `${formatReportDate(reportFrom.value)} – ${reportTo.value ? formatReportDate(reportTo.value) : 'onward'}`;
+    const rangeText = reportRangeText();
     if (!tasks.length) {
       reportContainer.innerHTML = `<h2>Volunteer Signups</h2><p>${escapeHtml(rangeText)}</p>
         <p class="placeholder-note">No volunteer activities in this date range.</p>`;

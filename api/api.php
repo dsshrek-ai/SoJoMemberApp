@@ -560,6 +560,45 @@ function buildAttendanceList(array $singer): array {
   return array_reverse($out);
 }
 
+// Attendance by Day report: for each rehearsal date column in the SOJO
+// roster sheet (getConfig's dates, labeled M/D/YYYY), counts how the active
+// participants -- SEQ 1-60, i.e. every voice part but not HOLD (90) or a
+// blank SEQ -- are marked: X present, O absent, E exempt, blank not marked.
+// Returns only these counts, never the roster itself. `from`/`to` are
+// YYYY-MM-DD or '' for no limit.
+function getAttendanceByDayReport(string $from, string $to): array {
+  $config = fetchAppsScript('getConfig');
+  $data = fetchAppsScript('getSingers');
+  $participants = array_values(array_filter($data['singers'] ?? [], function ($s) {
+    $seq = (int)($s['seq'] ?? 0);
+    return $seq > 0 && $seq <= 60;
+  }));
+
+  $rows = [];
+  foreach (($config['dates'] ?? []) as $d) {
+    if (!preg_match('#^(\d{1,2})/(\d{1,2})/(\d{4})$#', trim((string)($d['label'] ?? '')), $m)) {
+      continue;
+    }
+    $iso = sprintf('%04d-%02d-%02d', $m[3], $m[1], $m[2]);
+    if (($from !== '' && $iso < $from) || ($to !== '' && $iso > $to)) {
+      continue;
+    }
+    $counts = ['Present' => 0, 'Absent' => 0, 'Exempt' => 0, 'NotMarked' => 0];
+    $col = (string)($d['col'] ?? '');
+    foreach ($participants as $s) {
+      $code = strtoupper(trim((string)($s['attendance'][$col] ?? '')));
+      if ($code === 'X') $counts['Present']++;
+      elseif ($code === 'O') $counts['Absent']++;
+      elseif ($code === 'E') $counts['Exempt']++;
+      else $counts['NotMarked']++;
+    }
+    $rows[] = ['Date' => $iso] + $counts;
+  }
+  usort($rows, function ($a, $b) { return strcmp($a['Date'], $b['Date']); });
+
+  return ['participants' => count($participants), 'rows' => $rows];
+}
+
 // Same fallback-to-director logic as sendAbsenceEmail, but for display
 // rather than a notification: no leader row (or an empty one) on file falls
 // back to Settings.DirectorEmail with the name "Director" -- there's no
@@ -834,11 +873,15 @@ switch ($action) {
     $from = (string)($body['from'] ?? '');
     $to = (string)($body['to'] ?? '');
     $isDate = function ($d) { return (bool)preg_match('/^\d{4}-\d{2}-\d{2}$/', $d); };
-    if (!$isDate($from) || ($to !== '' && !$isDate($to))) {
+    if (($from !== '' && !$isDate($from)) || ($to !== '' && !$isDate($to))) {
       respond(['ok' => false, 'reason' => 'invalid-date']);
     }
     if ($report === 'volunteerSignups') {
-      respond(['ok' => true, 'rows' => getVolunteerSignupsReport($from, $to)]);
+      // A blank `from` means "no start date" -- earliest valid MySQL DATE.
+      respond(['ok' => true, 'rows' => getVolunteerSignupsReport($from !== '' ? $from : '1000-01-01', $to)]);
+    }
+    if ($report === 'attendanceByDay') {
+      respond(['ok' => true] + getAttendanceByDayReport($from, $to));
     }
     respond(['ok' => false, 'reason' => 'unknown-report']);
   }
