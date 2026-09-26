@@ -60,6 +60,14 @@
     box-sizing: border-box;
     font-family: inherit;
   }
+
+  .report-filters { display: flex; flex-wrap: wrap; gap: 1rem; }
+  table.admin-table tr.report-task-start td { border-top: 2px solid var(--color-primary); }
+  .report-open { font-style: italic; opacity: 0.7; }
+  @media print {
+    .site-header, .site-footer, .skip-link, .no-print { display: none !important; }
+    table.admin-table th { background: none; }
+  }
 </style>
 </head>
 <body>
@@ -80,11 +88,34 @@
   </div>
 
   <div id="panel" style="display:none;">
-    <p><button id="logout-btn" class="btn">Log Out</button></p>
-    <label for="table-select">Table</label>
-    <select id="table-select"></select>
-    <div id="status" class="placeholder-note" style="display:none;"></div>
-    <div id="table-container"></div>
+    <p class="no-print">
+      <button id="logout-btn" class="btn">Log Out</button>
+      <button id="view-toggle-btn" class="btn">Reports</button>
+    </p>
+    <div id="tables-view">
+      <label for="table-select">Table</label>
+      <select id="table-select"></select>
+      <div id="status" class="placeholder-note" style="display:none;"></div>
+      <div id="table-container"></div>
+    </div>
+    <div id="reports-view" style="display:none;">
+      <div class="no-print">
+        <label for="report-select">Report</label>
+        <select id="report-select">
+          <option value="volunteerSignups">Volunteer Signups</option>
+        </select>
+        <div class="report-filters">
+          <label>From<br><input type="date" id="report-from"></label>
+          <label>To<br><input type="date" id="report-to"></label>
+        </div>
+        <p class="placeholder-note">Leave "To" blank to include everything from the start date on.</p>
+        <p>
+          <button id="report-run-btn" class="btn">Run Report</button>
+          <button id="report-print-btn" class="btn">Print</button>
+        </p>
+      </div>
+      <div id="report-container"></div>
+    </div>
   </div>
 </main>
 <div id="expand-modal">
@@ -469,6 +500,113 @@
         button.disabled = false;
       }
     }
+  }
+
+  // ---- Reports ----
+
+  const tablesView = document.getElementById('tables-view');
+  const reportsView = document.getElementById('reports-view');
+  const viewToggleBtn = document.getElementById('view-toggle-btn');
+  const reportSelect = document.getElementById('report-select');
+  const reportFrom = document.getElementById('report-from');
+  const reportTo = document.getElementById('report-to');
+  const reportContainer = document.getElementById('report-container');
+
+  // Local date as YYYY-MM-DD -- toISOString() would give UTC, which is
+  // already "tomorrow" in the evening here.
+  function todayIso() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  // "2026-10-04" -> "Sun, Oct 4, 2026". Parsed as a local date on purpose
+  // (new Date('2026-10-04') is UTC midnight, which displays as the day before).
+  function formatReportDate(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+    if (!m) return iso || '';
+    return new Date(+m[1], +m[2] - 1, +m[3])
+      .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  let reportsInitialized = false;
+  viewToggleBtn.addEventListener('click', () => {
+    const showReports = reportsView.style.display === 'none';
+    reportsView.style.display = showReports ? '' : 'none';
+    tablesView.style.display = showReports ? 'none' : '';
+    viewToggleBtn.textContent = showReports ? 'Tables' : 'Reports';
+    if (showReports && !reportsInitialized) {
+      reportsInitialized = true;
+      reportFrom.value = todayIso();
+      runReport();
+    }
+  });
+
+  document.getElementById('report-run-btn').addEventListener('click', runReport);
+  document.getElementById('report-print-btn').addEventListener('click', () => window.print());
+
+  async function runReport() {
+    if (!reportFrom.value) reportFrom.value = todayIso();
+    reportContainer.innerHTML = 'Loading…';
+    let result;
+    try {
+      result = await callAdmin('adminReport', {
+        report: reportSelect.value, from: reportFrom.value, to: reportTo.value,
+      });
+    } catch (e) {
+      reportContainer.innerHTML = `<p class="placeholder-note">Couldn't run the report. Please try again.</p>`;
+      return;
+    }
+    if (!result.ok) {
+      if (/session|authoriz/i.test(result.error || '')) {
+        showLogin('Your saved login stopped working. Please log in again.');
+      } else {
+        reportContainer.innerHTML = `<p class="placeholder-note">Couldn't run the report${result.reason ? ` (${escapeHtml(result.reason)})` : ''}.</p>`;
+      }
+      return;
+    }
+    renderVolunteerSignupsReport(result.rows);
+  }
+
+  function renderVolunteerSignupsReport(tasks) {
+    const rangeText = `${formatReportDate(reportFrom.value)} – ${reportTo.value ? formatReportDate(reportTo.value) : 'onward'}`;
+    if (!tasks.length) {
+      reportContainer.innerHTML = `<h2>Volunteer Signups</h2><p>${escapeHtml(rangeText)}</p>
+        <p class="placeholder-note">No volunteer activities in this date range.</p>`;
+      return;
+    }
+    // One row per volunteer; the activity's own cells span all of its rows.
+    const bodyHtml = tasks.map(t => {
+      const people = t.Volunteers.length ? t.Volunteers : [null];
+      const open = Math.max(0, t.SlotsNeeded - t.Volunteers.length);
+      const span = people.length;
+      return people.map((p, i) => `
+        <tr${i === 0 ? ' class="report-task-start"' : ''}>
+          ${i === 0 ? `
+            <td rowspan="${span}">${escapeHtml(formatReportDate(t.Date))}</td>
+            <td rowspan="${span}">${escapeHtml(t.TaskName)}</td>
+            <td rowspan="${span}">${t.SlotsNeeded}</td>
+            <td rowspan="${span}">${t.Volunteers.length}</td>
+            <td rowspan="${span}">${open}</td>` : ''}
+          ${p
+            ? `<td>${escapeHtml(p.Name)}</td><td>${escapeHtml(p.PhoneNumber)}</td>`
+            : `<td colspan="2" class="report-open">No one signed up yet</td>`}
+        </tr>
+      `).join('');
+    }).join('');
+    reportContainer.innerHTML = `
+      <h2>Volunteer Signups</h2>
+      <p>${escapeHtml(rangeText)}</p>
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr>
+            <th scope="col">Date</th><th scope="col">Activity</th>
+            <th scope="col">Slots</th><th scope="col">Filled</th><th scope="col">Open</th>
+            <th scope="col">Volunteer</th><th scope="col">Phone</th>
+          </tr></thead>
+          <tbody>${bodyHtml}</tbody>
+        </table>
+      </div>
+    `;
   }
 
   (async () => {
