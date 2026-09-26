@@ -139,7 +139,7 @@
     Schedule: ['Date', 'Time', 'Type', 'Title', 'Location', 'ParkingNotes', 'EntranceNotes', 'Notes'],
     Songs: ['Title', 'Sequence', 'FolderSlug', 'RehearsalTrackURL', 'YouTubeURL', 'LastRehearsedDate', 'Status'],
     Announcements: ['Date', 'Author', 'Message', 'Pinned'],
-    VolunteerTasks: ['Date', 'TaskName', 'SlotsNeeded'],
+    VolunteerTasks: ['Date', 'Time', 'TaskName', 'SlotsNeeded'],
     VolunteerSignups: ['Date', 'TaskName', 'VolunteerName', 'PhoneNumber', 'Email', 'Timestamp'],
     Absences: ['Date', 'MemberName', 'Position', 'Email', 'PhoneNumber', 'Note', 'Timestamp'],
     Recognition: ['Date', 'MemberName', 'Message'],
@@ -749,6 +749,7 @@
         <tr${i === 0 ? ' class="report-task-start"' : ''}>
           ${i === 0 ? `
             <td rowspan="${span}">${escapeHtml(formatReportDate(t.Date))}</td>
+            <td rowspan="${span}">${escapeHtml(t.Time || '')}</td>
             <td rowspan="${span}">${escapeHtml(t.TaskName)}</td>
             <td rowspan="${span}">${t.SlotsNeeded}</td>
             <td rowspan="${span}">${t.Volunteers.length}</td>
@@ -765,7 +766,7 @@
       <div class="admin-table-wrap">
         <table class="admin-table">
           <thead><tr>
-            <th scope="col">Date</th><th scope="col">Activity</th>
+            <th scope="col">Date</th><th scope="col">Time</th><th scope="col">Activity</th>
             <th scope="col">Slots</th><th scope="col">Filled</th><th scope="col">Open</th>
             <th scope="col">Volunteer</th><th scope="col">Phone</th>
           </tr></thead>
