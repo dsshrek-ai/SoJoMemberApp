@@ -599,6 +599,79 @@ function getAttendanceByDayReport(string $from, string $to): array {
   return ['participants' => count($participants), 'rows' => $rows];
 }
 
+// Frequent Absences report: participants (SEQ 1-60) with more than 3
+// absences in [from, to], plus anyone who hasn't attended at all. An
+// absence is O or E (the choir treats them the same), with E also counted
+// separately. For a New 2026 singer, absences before their first X are
+// ignored -- they hadn't joined yet. Someone with no X at all gets a
+// "Has not attended" note and every absence counted (there's no first
+// attendance to measure from), and is listed at any absence count.
+// Sorted by absences (most first), then last/first name. Returns only the
+// fields shown -- never the raw singer rows.
+function getFrequentAbsencesReport(string $from, string $to): array {
+  $config = fetchAppsScript('getConfig');
+  $data = fetchAppsScript('getSingers');
+
+  $dates = [];
+  foreach (($config['dates'] ?? []) as $d) {
+    if (!preg_match('#^(\d{1,2})/(\d{1,2})/(\d{4})$#', trim((string)($d['label'] ?? '')), $m)) {
+      continue;
+    }
+    $iso = sprintf('%04d-%02d-%02d', $m[3], $m[1], $m[2]);
+    if (($from !== '' && $iso < $from) || ($to !== '' && $iso > $to)) {
+      continue;
+    }
+    $dates[$iso] = (string)($d['col'] ?? '');
+  }
+  ksort($dates);
+
+  $rows = [];
+  foreach (($data['singers'] ?? []) as $s) {
+    $seq = (int)($s['seq'] ?? 0);
+    if ($seq <= 0 || $seq > 60) {
+      continue;
+    }
+    $isNew = strtoupper(trim((string)($s['new2026'] ?? ''))) === 'Y';
+    $codes = [];
+    foreach ($dates as $col) {
+      $codes[] = strtoupper(trim((string)($s['attendance'][$col] ?? '')));
+    }
+    $hasAttended = in_array('X', $codes, true);
+
+    $absent = 0; $exempt = 0; $started = !$isNew || !$hasAttended;
+    foreach ($codes as $code) {
+      if ($code === 'X') {
+        $started = true;
+      } elseif ($started && ($code === 'O' || $code === 'E')) {
+        $absent++;
+        if ($code === 'E') $exempt++;
+      }
+    }
+
+    if ($absent > 3 || (!$hasAttended && $absent > 0)) {
+      $summary = memberSummary($s);
+      $rows[] = [
+        'LastName' => trim((string)($s['lastname'] ?? '')),
+        'FirstName' => trim((string)($s['firstname'] ?? '')),
+        'Name' => $summary['name'],
+        'PhoneNumber' => $summary['cellPhone'] !== '' ? $summary['cellPhone'] : $summary['homePhone'],
+        'Position' => $summary['position'],
+        'New2026' => $isNew,
+        'Absent' => $absent,
+        'Exempt' => $exempt,
+        'Notes' => $hasAttended ? '' : 'Has not attended',
+      ];
+    }
+  }
+
+  usort($rows, function ($a, $b) {
+    return [$b['Absent'], mb_strtolower($a['LastName']), mb_strtolower($a['FirstName'])]
+       <=> [$a['Absent'], mb_strtolower($b['LastName']), mb_strtolower($b['FirstName'])];
+  });
+
+  return ['dateCount' => count($dates), 'rows' => $rows];
+}
+
 // App Users by Day report: distinct member-app users per day from the
 // shared app_usage_log (see logAppUsage -- only requireMember() actions log,
 // so admin-panel use isn't counted). Every day in [from, to] gets a row,
@@ -932,6 +1005,9 @@ switch ($action) {
     if ($report === 'volunteerSignups') {
       // A blank `from` means "no start date" -- earliest valid MySQL DATE.
       respond(['ok' => true, 'rows' => getVolunteerSignupsReport($from !== '' ? $from : '1000-01-01', $to)]);
+    }
+    if ($report === 'frequentAbsences') {
+      respond(['ok' => true] + getFrequentAbsencesReport($from, $to));
     }
     if ($report === 'appUsage') {
       respond(['ok' => true] + getAppUsageReport($from, $to));

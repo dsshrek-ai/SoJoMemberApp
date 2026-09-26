@@ -104,6 +104,7 @@
         <select id="report-select">
           <option value="volunteerSignups">Volunteer Signups</option>
           <option value="attendanceByDay">Attendance by Day</option>
+          <option value="frequentAbsences">Frequent Absences</option>
           <option value="appUsage">App Users by Day</option>
         </select>
         <div class="report-filters">
@@ -592,6 +593,8 @@
     }
     if (reportSelect.value === 'attendanceByDay') {
       renderAttendanceByDayReport(result);
+    } else if (reportSelect.value === 'frequentAbsences') {
+      renderFrequentAbsencesReport(result);
     } else if (reportSelect.value === 'appUsage') {
       renderAppUsageReport(result);
     } else {
@@ -602,6 +605,38 @@
   function reportRangeText() {
     if (!reportFrom.value && !reportTo.value) return 'All dates';
     return `${reportFrom.value ? formatReportDate(reportFrom.value) : 'Start'} – ${reportTo.value ? formatReportDate(reportTo.value) : 'onward'}`;
+  }
+
+  function renderFrequentAbsencesReport(result) {
+    const header = `<h2>Frequent Absences</h2>
+      <p>${escapeHtml(reportRangeText())} &middot; ${result.dateCount} rehearsal date${result.dateCount === 1 ? '' : 's'}</p>
+      <p class="placeholder-note">Participants (SEQ 60 or less) absent more than 3 times, plus anyone who hasn't attended yet.
+        Absent includes Exempt. For New 2026 singers, absences before their first attendance aren't counted.</p>`;
+    if (!result.rows.length) {
+      reportContainer.innerHTML = `${header}<p class="placeholder-note">No one matches in this date range.</p>`;
+      return;
+    }
+    const bodyHtml = result.rows.map(r => `
+      <tr>
+        <td>${escapeHtml(r.LastName || r.FirstName ? `${r.LastName}, ${r.FirstName}` : r.Name)}${r.New2026 ? ' <em>(New 2026)</em>' : ''}</td>
+        <td>${escapeHtml(r.Position)}</td>
+        <td>${escapeHtml(r.PhoneNumber)}</td>
+        <td>${r.Absent}</td>
+        <td>${r.Exempt}</td>
+        <td>${escapeHtml(r.Notes)}</td>
+      </tr>
+    `).join('');
+    reportContainer.innerHTML = `${header}
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr>
+            <th scope="col">Name</th><th scope="col">Position</th><th scope="col">Phone</th>
+            <th scope="col">Absent</th><th scope="col">Exempt</th><th scope="col">Notes</th>
+          </tr></thead>
+          <tbody>${bodyHtml}</tbody>
+        </table>
+      </div>
+    `;
   }
 
   function renderAppUsageReport(result) {
