@@ -599,6 +599,59 @@ function getAttendanceByDayReport(string $from, string $to): array {
   return ['participants' => count($participants), 'rows' => $rows];
 }
 
+// App Users by Day report: distinct member-app users per day from the
+// shared app_usage_log (see logAppUsage -- only requireMember() actions log,
+// so admin-panel use isn't counted). Every day in [from, to] gets a row,
+// including zero days, most recent first. A blank `to` is today (MySQL's
+// clock, same one logAppUsage stamps with); a blank `from` is the earliest
+// logged day. Capped at 366 days so an open range can't build a huge list.
+function getAppUsageReport(string $from, string $to): array {
+  $conn = db();
+  $appKey = 'south-jordan-choral-arts';
+  if ($to === '') {
+    $to = $conn->query('SELECT CURDATE() AS d')->fetch_assoc()['d'];
+  }
+  if ($from === '') {
+    $stmt = $conn->prepare('SELECT MIN(access_date) AS d FROM app_usage_log WHERE app_key = ?');
+    $stmt->bind_param('s', $appKey);
+    $stmt->execute();
+    $from = $stmt->get_result()->fetch_assoc()['d'] ?? $to;
+    $stmt->close();
+  }
+
+  $stmt = $conn->prepare(
+    'SELECT access_date, COUNT(DISTINCT user_id) AS users FROM app_usage_log
+     WHERE app_key = ? AND access_date BETWEEN ? AND ? GROUP BY access_date'
+  );
+  $stmt->bind_param('sss', $appKey, $from, $to);
+  $stmt->execute();
+  $byDate = [];
+  foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
+    $byDate[$r['access_date']] = (int)$r['users'];
+  }
+  $stmt->close();
+
+  $stmt = $conn->prepare(
+    'SELECT COUNT(DISTINCT user_id) AS users FROM app_usage_log
+     WHERE app_key = ? AND access_date BETWEEN ? AND ?'
+  );
+  $stmt->bind_param('sss', $appKey, $from, $to);
+  $stmt->execute();
+  $uniqueUsers = (int)$stmt->get_result()->fetch_assoc()['users'];
+  $stmt->close();
+
+  $rows = [];
+  $day = new DateTime($to);
+  $start = new DateTime($from);
+  while ($day >= $start && count($rows) < 366) {
+    $iso = $day->format('Y-m-d');
+    $rows[] = ['Date' => $iso, 'Users' => $byDate[$iso] ?? 0];
+    $day->modify('-1 day');
+  }
+
+  return ['from' => $from, 'to' => $to, 'uniqueUsers' => $uniqueUsers, 'rows' => $rows];
+}
+
 // Same fallback-to-director logic as sendAbsenceEmail, but for display
 // rather than a notification: no leader row (or an empty one) on file falls
 // back to Settings.DirectorEmail with the name "Director" -- there's no
@@ -879,6 +932,9 @@ switch ($action) {
     if ($report === 'volunteerSignups') {
       // A blank `from` means "no start date" -- earliest valid MySQL DATE.
       respond(['ok' => true, 'rows' => getVolunteerSignupsReport($from !== '' ? $from : '1000-01-01', $to)]);
+    }
+    if ($report === 'appUsage') {
+      respond(['ok' => true] + getAppUsageReport($from, $to));
     }
     if ($report === 'attendanceByDay') {
       respond(['ok' => true] + getAttendanceByDayReport($from, $to));

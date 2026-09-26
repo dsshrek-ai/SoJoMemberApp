@@ -104,6 +104,7 @@
         <select id="report-select">
           <option value="volunteerSignups">Volunteer Signups</option>
           <option value="attendanceByDay">Attendance by Day</option>
+          <option value="appUsage">App Users by Day</option>
         </select>
         <div class="report-filters">
           <label>From<br><input type="date" id="report-from"></label>
@@ -542,13 +543,28 @@
     }
   });
 
+  function daysAgoIso(n) {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
   // Volunteer Signups looks ahead (today onward); Attendance by Day looks
   // back (every date on the sheet through today -- later columns are
-  // upcoming rehearsals nobody's been marked for yet).
+  // upcoming rehearsals nobody's been marked for yet); App Users by Day is
+  // the last 30 days, today included.
   function applyReportDefaults() {
-    const isVolunteer = reportSelect.value === 'volunteerSignups';
-    reportFrom.value = isVolunteer ? todayIso() : '';
-    reportTo.value = isVolunteer ? '' : todayIso();
+    const report = reportSelect.value;
+    if (report === 'volunteerSignups') {
+      reportFrom.value = todayIso();
+      reportTo.value = '';
+    } else if (report === 'appUsage') {
+      reportFrom.value = daysAgoIso(29);
+      reportTo.value = todayIso();
+    } else {
+      reportFrom.value = '';
+      reportTo.value = todayIso();
+    }
   }
   reportSelect.addEventListener('change', () => { applyReportDefaults(); runReport(); });
 
@@ -576,6 +592,8 @@
     }
     if (reportSelect.value === 'attendanceByDay') {
       renderAttendanceByDayReport(result);
+    } else if (reportSelect.value === 'appUsage') {
+      renderAppUsageReport(result);
     } else {
       renderVolunteerSignupsReport(result.rows);
     }
@@ -584,6 +602,35 @@
   function reportRangeText() {
     if (!reportFrom.value && !reportTo.value) return 'All dates';
     return `${reportFrom.value ? formatReportDate(reportFrom.value) : 'Start'} – ${reportTo.value ? formatReportDate(reportTo.value) : 'onward'}`;
+  }
+
+  function renderAppUsageReport(result) {
+    const header = `<h2>App Users by Day</h2>
+      <p>${escapeHtml(formatReportDate(result.from))} – ${escapeHtml(formatReportDate(result.to))}</p>
+      <p><strong>Unique users in this period: ${result.uniqueUsers}</strong></p>`;
+    const bodyHtml = result.rows.map(r => {
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(r.Date);
+      const d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : null;
+      const dateText = d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : r.Date;
+      const weekday = d ? d.toLocaleDateString('en-US', { weekday: 'long' }) : '';
+      return `
+        <tr>
+          <td>${escapeHtml(dateText)}</td>
+          <td>${escapeHtml(weekday)}</td>
+          <td>${r.Users}</td>
+        </tr>
+      `;
+    }).join('');
+    reportContainer.innerHTML = `${header}
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr>
+            <th scope="col">Date</th><th scope="col">Day</th><th scope="col">Users</th>
+          </tr></thead>
+          <tbody>${bodyHtml}</tbody>
+        </table>
+      </div>
+    `;
   }
 
   function renderAttendanceByDayReport(result) {
