@@ -601,7 +601,6 @@
         <td>${r.Present}</td>
         <td>${total ? Math.round(r.Present / total * 100) + '%' : '–'}</td>
         <td>${r.Absent}</td>
-        <td>${r.Exempt}</td>
         <td>${r.NotMarked}</td>
       </tr>
     `).join('');
@@ -610,7 +609,7 @@
         <table class="admin-table">
           <thead><tr>
             <th scope="col">Date</th><th scope="col">Present</th><th scope="col">% Present</th>
-            <th scope="col">Absent</th><th scope="col">Exempt</th><th scope="col">Not Marked</th>
+            <th scope="col">Absent</th><th scope="col">Not Marked</th>
           </tr></thead>
           <tbody>${bodyHtml}</tbody>
         </table>

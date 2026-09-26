@@ -563,7 +563,8 @@ function buildAttendanceList(array $singer): array {
 // Attendance by Day report: for each rehearsal date column in the SOJO
 // roster sheet (getConfig's dates, labeled M/D/YYYY), counts how the active
 // participants -- SEQ 1-60, i.e. every voice part but not HOLD (90) or a
-// blank SEQ -- are marked: X present, O absent, E exempt, blank not marked.
+// blank SEQ -- are marked: X present, O absent or E exempt (both counted as
+// absent -- the choir treats them the same), blank not marked.
 // Returns only these counts, never the roster itself. `from`/`to` are
 // YYYY-MM-DD or '' for no limit.
 function getAttendanceByDayReport(string $from, string $to): array {
@@ -583,13 +584,12 @@ function getAttendanceByDayReport(string $from, string $to): array {
     if (($from !== '' && $iso < $from) || ($to !== '' && $iso > $to)) {
       continue;
     }
-    $counts = ['Present' => 0, 'Absent' => 0, 'Exempt' => 0, 'NotMarked' => 0];
+    $counts = ['Present' => 0, 'Absent' => 0, 'NotMarked' => 0];
     $col = (string)($d['col'] ?? '');
     foreach ($participants as $s) {
       $code = strtoupper(trim((string)($s['attendance'][$col] ?? '')));
       if ($code === 'X') $counts['Present']++;
-      elseif ($code === 'O') $counts['Absent']++;
-      elseif ($code === 'E') $counts['Exempt']++;
+      elseif ($code === 'O' || $code === 'E') $counts['Absent']++;
       else $counts['NotMarked']++;
     }
     $rows[] = ['Date' => $iso] + $counts;
