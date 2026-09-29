@@ -152,24 +152,50 @@ function escapeHtml(str) {
 // ![alt](url) images, blank-line paragraphs, "- " bullet lists, and "1. " numbered
 // lists. The Sheet cell itself just holds plain text with these symbols typed in —
 // no real formatting is stored, only interpreted here.
+// `#`, `##`, `###` heading lines. Page titles already use <h2> and card titles
+// <h3>, so the three levels render as <h3>/<h4>/<h5> (with md-h1..md-h3
+// classes for styling) to keep them below the page's own headings.
+const HEADING_PATTERN = /^(#{1,3})\s+(.*)$/;
+
 function formatText(raw) {
   const escaped = escapeHtml(raw ?? '');
   const blocks = escaped.split(/\n\s*\n/);
   return blocks
     .map(block => {
       const lines = block.split('\n').filter(line => line.trim() !== '');
-      if (!lines.length) return '';
-      if (lines.every(line => /^-\s+/.test(line))) {
-        const items = lines.map(line => `<li>${inlineFormat(line.replace(/^-\s+/, ''))}</li>`).join('');
-        return `<ul>${items}</ul>`;
-      }
-      if (lines.every(line => /^\d+\.\s+/.test(line))) {
-        const items = lines.map(line => `<li>${inlineFormat(line.replace(/^\d+\.\s+/, ''))}</li>`).join('');
-        return `<ol>${items}</ol>`;
-      }
-      return `<p>${lines.map(inlineFormat).join('<br>')}</p>`;
+      // A heading can sit directly above its text with no blank line between,
+      // so headings are pulled out line by line and the lines between them
+      // are formatted as their own list/paragraph run.
+      const parts = [];
+      let run = [];
+      lines.forEach(line => {
+        const heading = HEADING_PATTERN.exec(line.trim());
+        if (heading) {
+          parts.push(formatRun(run));
+          run = [];
+          const level = heading[1].length;
+          parts.push(`<h${level + 2} class="md-h${level}">${inlineFormat(heading[2])}</h${level + 2}>`);
+        } else {
+          run.push(line);
+        }
+      });
+      parts.push(formatRun(run));
+      return parts.join('');
     })
     .join('');
+}
+
+function formatRun(lines) {
+  if (!lines.length) return '';
+  if (lines.every(line => /^-\s+/.test(line))) {
+    const items = lines.map(line => `<li>${inlineFormat(line.replace(/^-\s+/, ''))}</li>`).join('');
+    return `<ul>${items}</ul>`;
+  }
+  if (lines.every(line => /^\d+\.\s+/.test(line))) {
+    const items = lines.map(line => `<li>${inlineFormat(line.replace(/^\d+\.\s+/, ''))}</li>`).join('');
+    return `<ol>${items}</ol>`;
+  }
+  return `<p>${lines.map(inlineFormat).join('<br>')}</p>`;
 }
 
 function inlineFormat(text) {
@@ -315,6 +341,7 @@ const DEFAULT_NAV_ITEMS = [
   { Label: 'Home', PageFile: 'index.html' },
   { Label: 'Countdown', PageFile: 'countdown.html' },
   { Label: 'Announcements', PageFile: 'announcements.html' },
+  { Label: 'Homework', PageFile: 'homework.html' },
   { Label: 'Schedule', PageFile: 'schedule.html' },
   { Label: 'Volunteer', PageFile: 'volunteer.html' },
   { Label: 'Songs', PageFile: 'songs.html' },

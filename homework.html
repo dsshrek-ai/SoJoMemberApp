@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Homework | Choir App</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a href="#main-content" class="skip-link">Skip to main content</a>
+<header class="site-header">
+  <h1>SOJO Choral Arts Seasons Chorale Choir</h1>
+  <nav class="site-nav" id="site-nav"></nav>
+</header>
+<main id="main-content">
+  <h2>Homework</h2>
+  <div id="content">Loading homework&hellip;</div>
+</main>
+<footer class="site-footer">Choir App &mdash; built for our community</footer>
+<script src="js/api.js"></script>
+<script>
+  // DueDate comes back as "YYYY-MM-DD" (or null). Parsed as a local date so it
+  // doesn't shift a day earlier the way new Date("YYYY-MM-DD") (UTC) can.
+  function parseDueDate(value) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(value || '');
+    return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
+  }
+
+  // Midnight today (local), so something due today still counts as upcoming.
+  const TODAY = new Date();
+  TODAY.setHours(0, 0, 0, 0);
+
+  function isPastDue(r) {
+    const d = parseDueDate(r.DueDate);
+    return !!d && d < TODAY;
+  }
+
+  function dueLabel(r) {
+    const d = parseDueDate(r.DueDate);
+    if (!d) return 'No due date';
+    const text = d.toLocaleDateString(undefined,
+      { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' });
+    return isPastDue(r) ? 'Past due &mdash; was due ' + text : 'Due ' + text;
+  }
+
+  // Sort bucket: pinned (always on top, even if past due), then upcoming,
+  // then no due date, then past due at the bottom.
+  function bucket(r) {
+    if ((r.Pinned || '').toUpperCase() === 'Y') return 0;
+    if (!parseDueDate(r.DueDate)) return 2;
+    return isPastDue(r) ? 3 : 1;
+  }
+
+  (async () => {
+    const el = document.getElementById('content');
+    try {
+      const rows = await fetchData('homework');
+      if (!rows.length) {
+        el.innerHTML = `<p class="placeholder-note">No homework right now.</p>`;
+        return;
+      }
+      // Within a bucket: soonest due first, except past due, which shows the
+      // most recently missed first. Undated items sort after dated ones.
+      const sorted = rows.slice().sort((a, b) => {
+        const aBucket = bucket(a);
+        const bBucket = bucket(b);
+        if (aBucket !== bBucket) return aBucket - bBucket;
+        const aDue = parseDueDate(a.DueDate);
+        const bDue = parseDueDate(b.DueDate);
+        if (!aDue !== !bDue) return aDue ? -1 : 1;
+        if (!aDue) return 0;
+        return aBucket === 3 ? bDue - aDue : aDue - bDue;
+      });
+      el.innerHTML = sorted.map(r => `
+        <div class="card ${(r.Pinned || '').toUpperCase() === 'Y' ? 'pinned' : ''} ${bucket(r) === 3 ? 'past-due' : ''}">
+          ${(r.Pinned || '').toUpperCase() === 'Y' ? '<span class="badge">Pinned</span>' : ''}
+          ${r.Title ? `<h3>${escapeHtml(r.Title)}</h3>` : ''}
+          <p><strong>${dueLabel(r)}</strong></p>
+          ${formatText(r.Message)}
+        </div>
+      `).join('');
+    } catch (e) {
+      handleFetchError(el, e);
+    }
+  })();
+</script>
+</body>
+</html>

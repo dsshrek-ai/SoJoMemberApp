@@ -32,6 +32,12 @@ optional — leave it blank for a brand-new song.
 "Yes" if it should stay at the top of the list (e.g. something time-sensitive); otherwise
 leave it "No" and it'll sort in by date automatically.
 
+**Post a homework assignment**
+→ Table: `Homework`. Add a Title and the assignment in Message. DueDate is optional — leave
+it blank for "No due date". Set Pinned to "Yes" to keep it at the top; everything else sorts
+by soonest due date, then undated assignments, then past-due ones at the bottom (dimmed and
+marked "Past due"). Set Show to "Hide" to take an assignment off the page without deleting it.
+
 **Post a volunteer task (e.g. "set up chairs" for a rehearsal)**
 → Table: `VolunteerTasks`. Add the Date, a TaskName, and how many people you need
 (SlotsNeeded). Members sign up for it themselves on the Volunteer page — you don't need to fill
@@ -108,11 +114,14 @@ a text or email to invite someone.
 
 ## Formatting your text
 
-Message-style boxes (Announcements, Recognition, Sponsors, and the WelcomeMessage/
-AuditionInfoText Settings) support a few simple symbols instead of a formatting toolbar:
+Message-style boxes (Announcements, Homework, Recognition, Sponsors, Schedule Notes, and the
+WelcomeMessage/AuditionInfoText/InstructionsText Settings) support a few simple symbols instead
+of a formatting toolbar:
 
 - `**bold**` → **bold**
 - `*italic*` → *italic*
+- Lines starting with `# `, `## `, or `### ` become a large, medium, or small heading (the
+  space after the `#` is required)
 - A blank line between lines starts a new paragraph
 - Lines starting with `- ` become a bulleted list
 - Lines starting with `1. `, `2. `, etc. become a numbered list

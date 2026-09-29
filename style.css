@@ -115,6 +115,21 @@ h2 {
   margin-bottom: 0;
 }
 
+/* Headings typed as #, ##, ### in admin-entered text (see formatText). */
+.card .md-h1, .card .md-h2, .card .md-h3 {
+  color: var(--color-primary-dark);
+  margin: 1rem 0 0.4rem;
+  line-height: 1.25;
+}
+.card .md-h1 { font-size: 1.3rem; }
+.card .md-h2 { font-size: 1.15rem; }
+.card .md-h3 { font-size: 1rem; }
+
+/* Homework past its due date (and not pinned): sunk to the bottom, dimmed. */
+.card.past-due {
+  opacity: 0.7;
+}
+
 .card img {
   max-width: 100%;
   height: auto;
