@@ -156,6 +156,11 @@ $DATA_TABLES = [
   'Announcements' => ['table' => 'choir_announcements', 'columns' => [
     'Date' => 'entry_date', 'Author' => 'author', 'Message' => 'message', 'Pinned' => 'pinned',
   ]],
+  // Director-assigned homework; DueDate is optional (NULL = no due date).
+  'Homework' => ['table' => 'choir_homework', 'columns' => [
+    'DueDate' => 'due_date', 'Title' => 'title', 'Message' => 'message', 'Pinned' => 'pinned',
+    'Show' => 'visible',
+  ]],
   'VolunteerTasks' => ['table' => 'choir_volunteer_tasks', 'columns' => [
     'Date' => 'entry_date', 'Time' => 'time_text', 'TaskName' => 'task_name', 'SlotsNeeded' => 'slots_needed',
   ]],
@@ -202,14 +207,14 @@ $DATA_TABLES = [
 
 // Columns that must round-trip as JSON numbers, not strings (so `>=` comparisons
 // in the front end work correctly instead of comparing lexically).
-$NUMERIC_COLUMNS = ['SlotsNeeded', 'SortOrder', 'Visible', 'SongID', 'Sequence'];
+$NUMERIC_COLUMNS = ['SlotsNeeded', 'SortOrder', 'Visible', 'SongID', 'Sequence', 'Show'];
 
 // Columns backed by a real SQL DATE column (see schema.sql). MySQL rejects an
 // empty string for a DATE column outright (it's not a valid date), so a
 // blank date field has to be sent as NULL instead of '' or the whole
 // insert/update fails — that's what made LastRehearsedDate feel "required"
 // even though the column itself is nullable.
-$DATE_COLUMNS = ['Date', 'LastRehearsedDate'];
+$DATE_COLUMNS = ['Date', 'LastRehearsedDate', 'DueDate'];
 
 // The public `settings` action must NOT return every row — Settings also holds
 // DirectorEmail. Allowlist, not blocklist, matching the old Code.gs behavior.
@@ -940,6 +945,16 @@ switch ($action) {
       return $f;
     }, $files);
     respond(['Title' => $song['Title'], 'Status' => $song['Status'], 'Files' => $files]);
+  }
+
+  // Homework rows set to Hide (Show = 0) are filtered out here so they never
+  // reach members at all; ordering (pinned / upcoming / past due) is done in
+  // homework.html since "past due" depends on the viewer's local date.
+  case 'homework': {
+    requireMember();
+    respond(array_values(array_filter(tableRows('Homework'), function ($row) {
+      return (int)$row['Show'] === 1;
+    })));
   }
 
   // Nav links for the top of every page — admin-editable order/visibility.

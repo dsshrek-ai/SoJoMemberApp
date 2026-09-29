@@ -220,3 +220,25 @@ CREATE TABLE IF NOT EXISTS choir_song_files (
 -- Songs.
 
 ALTER TABLE choir_songs ADD COLUMN sequence INT NOT NULL DEFAULT 0 AFTER status;
+
+-- ---------- SCHEMA CHANGE: Homework page ----------
+-- Run once. Assignments from the director, modeled on choir_announcements.
+-- due_date is optional (NULL = "No due date"); pinned is 'Y'/'N' text like
+-- choir_announcements.pinned; visible is Show (1) / Hide (0), and hidden rows
+-- are never sent to members. Message supports the same *italic* / **bold** /
+-- # heading formatting as every other admin-entered text.
+
+CREATE TABLE IF NOT EXISTS choir_homework (
+  id          INT AUTO_INCREMENT PRIMARY KEY,
+  due_date    DATE NULL,
+  title       VARCHAR(255) NULL,
+  message     TEXT NULL,
+  pinned      VARCHAR(5) NULL,
+  visible     TINYINT(1) NOT NULL DEFAULT 1
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO choir_nav_items (label, page_file, sort_order) VALUES
+  ('Homework', 'homework.html', 35);
+
+-- Only if choir_homework was already created before the Show/Hide column:
+-- ALTER TABLE choir_homework ADD COLUMN visible TINYINT(1) NOT NULL DEFAULT 1;
