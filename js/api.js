@@ -149,8 +149,9 @@ function escapeHtml(str) {
 }
 
 // Renders lightweight, Markdown-style plain text as safe HTML: **bold**, *italic*,
-// ![alt](url) images, blank-line paragraphs, "- " bullet lists, and "1. " numbered
-// lists. The Sheet cell itself just holds plain text with these symbols typed in —
+// ![alt](url) images, [text](url) links (web, mailto: and tel: only; bare
+// https:// and www. addresses are linked too), blank-line paragraphs, "- " bullet
+// lists, and "1. " numbered lists. The Sheet cell itself just holds plain text with these symbols typed in —
 // no real formatting is stored, only interpreted here.
 // `#`, `##`, `###` heading lines. Page titles already use <h2> and card titles
 // <h3>, so the three levels render as <h3>/<h4>/<h5> (with md-h1..md-h3
@@ -198,17 +199,50 @@ function formatRun(lines) {
   return `<p>${lines.map(inlineFormat).join('<br>')}</p>`;
 }
 
-function inlineFormat(text) {
+// Only these kinds of link are allowed, so a pasted "javascript:" (or similar)
+// link can never run anything.
+const SAFE_LINK_PATTERN = /^(https?:\/\/|mailto:|tel:)/i;
+
+// Web links open in a new tab so members don't lose their place in the app;
+// email/phone links don't (a new tab would just be left blank).
+function linkHtml(url, label) {
+  const newTab = /^https?:/i.test(url) ? ' target="_blank" rel="noopener noreferrer"' : '';
+  return `<a href="${url.replace(/"/g, '&quot;')}"${newTab}>${label}</a>`;
+}
+
+function emphasis(text) {
   return text
-    // Image syntax first, so a * inside alt text or a URL can't be mistaken for
-    // bold/italic markers. `text` is already HTML-escaped by formatText, but that
-    // escaping doesn't cover quotes (fine for text nodes, not for attribute
-    // values), so quotes are escaped here specifically for the src/alt attributes.
-    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, (match, alt, url) =>
-      `<img src="${url.replace(/"/g, '&quot;')}" alt="${alt.replace(/"/g, '&quot;')}">`
-    )
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/\*(.+?)\*/g, '<em>$1</em>');
+}
+
+function inlineFormat(text) {
+  // Images and links are swapped out for placeholders while the rest of the line
+  // is formatted, so a * or _ inside a URL can't be mistaken for bold/italic and
+  // a URL already inside a link isn't linked a second time. `text` is already
+  // HTML-escaped by formatText, but that escaping doesn't cover quotes (fine for
+  // text nodes, not for attribute values), so quotes are escaped for src/href/alt.
+  const saved = [];
+  const hold = html => `\u0000${saved.push(html) - 1}\u0000`;
+
+  return emphasis(text
+    // ![alt](url) -- a picture
+    .replace(/!\[([^\]]*)\]\(([^)\s]+)\)/g, (match, alt, url) =>
+      hold(`<img src="${url.replace(/"/g, '&quot;')}" alt="${alt.replace(/"/g, '&quot;')}">`)
+    )
+    // [label](url) -- a link; anything that isn't a web, email or phone link is left as typed
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (match, label, url) =>
+      SAFE_LINK_PATTERN.test(url) ? hold(linkHtml(url, emphasis(label))) : match
+    )
+    // a bare https://... or www.... address becomes clickable too; trailing
+    // punctuation (a sentence's period, a closing bracket) stays outside the link
+    .replace(/\b(https?:\/\/|www\.)[^\s<\u0000]+/gi, match => {
+      const url = match.replace(/[.,;:!?)\]'"]+$/, '');
+      const rest = match.slice(url.length);
+      const href = /^www\./i.test(url) ? `https://${url}` : url;
+      return hold(linkHtml(href, url)) + rest;
+    })
+  ).replace(/\u0000(\d+)\u0000/g, (match, i) => saved[Number(i)]);
 }
 
 // Copies `text` to the clipboard and briefly changes `button`'s label to confirm it. If the
