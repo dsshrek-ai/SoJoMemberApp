@@ -125,6 +125,11 @@ of a formatting toolbar:
 - A blank line between lines starts a new paragraph
 - Lines starting with `- ` become a bulleted list
 - Lines starting with `1. `, `2. `, etc. become a numbered list
+- `[Visit our website](https://www.example.org)` → a clickable link that reads "Visit our
+  website" (opens in a new tab). A web address typed on its own, like `https://www.example.org`
+  or `www.example.org`, becomes clickable too.
+- `[Email the director](mailto:director@example.org)` and `[Call us](tel:8015551234)` make email
+  and phone links. Only web, email, and phone links are allowed — anything else shows as typed.
 
 For example, typing:
 ```
