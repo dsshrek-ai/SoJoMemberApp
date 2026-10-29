@@ -157,7 +157,7 @@
     // singers can request/return), and the singers' requests (ShowID = a
     // TicketShows row's Id). Handouts at the lobby desk live in their own table.
     TicketShows: ['Title', 'Date', 'Time', 'Capacity', 'ClaimDeadline', 'SortOrder'],
-    TicketRequests: ['ShowID', 'Email', 'MemberName', 'Quantity'],
+    TicketRequests: ['ShowID', 'Email', 'MemberName', 'Quantity', 'EnteredBy'],
   };
   const LONG_TEXT_COLUMNS = new Set(['Message', 'Notes', 'Note', 'Value']);
   const DATE_COLUMNS = new Set(['Date', 'LastRehearsedDate', 'DueDate', 'ClaimDeadline']);
@@ -697,7 +697,7 @@
       const requested = s.Requested;
       const bodyHtml = s.Singers.map(r => `
         <tr>
-          <td>${escapeHtml(r.Name)}</td>
+          <td>${escapeHtml(r.Name)}${r.EnteredBy ? ` <em>(entered by ${escapeHtml(r.EnteredBy)})</em>` : ''}</td>
           <td>${r.Requested}</td>
           <td>${r.PickedUp}${r.PickedUp && r.PickedUp >= r.Requested ? ' &#10003;' : ''}</td>
         </tr>

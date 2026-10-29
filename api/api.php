@@ -105,6 +105,14 @@ function hasGrant(array $user, string $appKey): bool {
   return $ok;
 }
 
+// The SOJO Membership app (section leaders' roster/attendance app) can manage
+// any singer's ticket request from their profile; Admin Panel users can too.
+function requireTicketManagerAccess(array $user): void {
+  if (!hasGrant($user, 'sojo-membership') && !hasGrant($user, 'choir-admin-panel')) {
+    fail('Not authorized to manage other singers\' tickets', 403);
+  }
+}
+
 // The lobby ticket desk: its own grant, so volunteers don't need the whole
 // admin panel -- but Admin Panel users can run the desk too.
 function requireTicketDeskAccess(array $user): void {
@@ -228,6 +236,7 @@ $DATA_TABLES = [
   ]],
   'TicketRequests' => ['table' => 'choir_ticket_requests', 'columns' => [
     'ShowID' => 'show_id', 'Email' => 'email', 'MemberName' => 'member_name', 'Quantity' => 'quantity',
+    'EnteredBy' => 'entered_by',
   ]],
   'SongFiles' => ['table' => 'choir_song_files', 'columns' => [
     'SongID' => 'song_id', 'FileType' => 'file_type', 'PartLabel' => 'part_label',
@@ -414,13 +423,19 @@ function singerNameFor(array $user): string {
   return trim((string)($user['display_name'] ?? '')) ?: (string)$user['username'];
 }
 
-// Sets how many tickets the logged-in singer holds for one showing (0 = return
-// them all). Checks the deadline, the per-singer limit across all showings,
-// and seats left -- under a lock so two singers can't take the last seat.
+// The logged-in singer's own request.
 function setMyTickets(array $user, int $showId, int $quantity): array {
-  $email = (string)$user['username'];
-  // Before the lock: the roster call can take a few seconds.
+  // Before the lock (in setTickets): the roster call can take a few seconds.
   $name = $quantity > 0 ? singerNameFor($user) : '';
+  return setTickets((string)$user['username'], $name, $showId, $quantity, (string)$user['username']);
+}
+
+// Sets how many tickets a singer holds for one showing (0 = return them all).
+// Checks the deadline, the per-singer limit across all showings, and seats
+// left -- under a lock so two requests can't take the last seat. $enteredBy
+// is the login that made the change (the singer, or a SOJO Membership user
+// doing it for them).
+function setTickets(string $email, string $name, int $showId, int $quantity, string $enteredBy): array {
   $conn = db();
   $got = $conn->query("SELECT GET_LOCK('choir_tickets', 10) AS got")->fetch_assoc();
   if (!$got || (int)$got['got'] !== 1) {
@@ -455,11 +470,12 @@ function setMyTickets(array $user, int $showId, int $quantity): array {
     }
     // A return (0) keeps the name already on file.
     $stmt = $conn->prepare(
-      "INSERT INTO choir_ticket_requests (show_id, email, member_name, quantity, updated_at) VALUES (?, ?, ?, ?, NOW())
+      "INSERT INTO choir_ticket_requests (show_id, email, member_name, quantity, entered_by, updated_at) VALUES (?, ?, ?, ?, ?, NOW())
        ON DUPLICATE KEY UPDATE quantity = VALUES(quantity),
-         member_name = IF(VALUES(member_name) = '', member_name, VALUES(member_name)), updated_at = NOW()"
+         member_name = IF(VALUES(member_name) = '', member_name, VALUES(member_name)),
+         entered_by = VALUES(entered_by), updated_at = NOW()"
     );
-    $stmt->bind_param('issi', $showId, $email, $name, $quantity);
+    $stmt->bind_param('issis', $showId, $email, $name, $quantity, $enteredBy);
     $stmt->execute();
     $stmt->close();
     return ['ok' => true];
@@ -472,6 +488,8 @@ function setMyTickets(array $user, int $showId, int $quantity): array {
 function deskList(int $showId): array {
   $stmt = db()->prepare(
     'SELECT r.email, r.member_name, r.quantity,
+            IF(r.entered_by IS NULL OR r.entered_by = r.email, NULL,
+               COALESCE(NULLIF((SELECT u.display_name FROM users u WHERE u.username = r.entered_by), \'\'), r.entered_by)) AS entered_by,
             COALESCE((SELECT SUM(p.quantity) FROM choir_ticket_pickups p
                       WHERE p.show_id = r.show_id AND p.email = r.email AND p.undone_at IS NULL), 0) AS picked,
             (SELECT MAX(p.handed_out_at) FROM choir_ticket_pickups p
@@ -485,7 +503,7 @@ function deskList(int $showId): array {
   $stmt->close();
   $singers = array_map(fn($r) => [
     'Email' => $r['email'], 'Name' => $r['member_name'], 'Requested' => (int)$r['quantity'],
-    'PickedUp' => (int)$r['picked'], 'PickedUpAt' => $r['picked_at'],
+    'PickedUp' => (int)$r['picked'], 'PickedUpAt' => $r['picked_at'], 'EnteredBy' => $r['entered_by'],
   ], $rows);
 
   $stmt = db()->prepare(
@@ -1312,6 +1330,35 @@ switch ($action) {
   case 'setMyTickets': {
     $user = requireMember();
     respond(setMyTickets($user, (int)($body['showId'] ?? 0), (int)($body['quantity'] ?? -1)));
+  }
+
+  // From the SOJO Membership app's singer profile: one singer's requests, by
+  // their roster email. Same rules as the singer's own page.
+  case 'ticketsForSinger': {
+    $user = requireUser();
+    requireTicketManagerAccess($user);
+    $email = mb_strtolower(trim((string)($_GET['email'] ?? '')));
+    if ($email === '') {
+      fail('email is required');
+    }
+    $mine = myTicketRequests($email);
+    respond([
+      'ok' => true,
+      'shows' => array_map(fn($s) => $s + ['Mine' => $mine[$s['Id']] ?? 0], ticketShows()),
+      'limit' => ticketsPerSinger(),
+    ]);
+  }
+
+  case 'setTicketsForSinger': {
+    $user = requireUser();
+    requireTicketManagerAccess($user);
+    $email = mb_strtolower(trim((string)($body['email'] ?? '')));
+    $name = trim((string)($body['name'] ?? ''));
+    if ($email === '' || $name === '') {
+      fail('email and name are required');
+    }
+    respond(setTickets($email, $name, (int)($body['showId'] ?? 0),
+      (int)($body['quantity'] ?? -1), (string)$user['username']));
   }
 
   case 'deskCheckAccess': {
