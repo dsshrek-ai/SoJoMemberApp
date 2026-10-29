@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Concert Tickets | Choir App</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .ticket-card h3 { margin-bottom: 0.25rem; }
+  .ticket-when { font-weight: bold; margin: 0.1rem 0 0.5rem; }
+  .ticket-left { margin: 0.25rem 0 0.75rem; }
+  .ticket-mine { font-size: 1.15rem; margin: 0.5rem 0; }
+  .ticket-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+  .ticket-closed { font-style: italic; opacity: 0.8; }
+</style>
+</head>
+<body>
+<a href="#main-content" class="skip-link">Skip to main content</a>
+<header class="site-header">
+  <h1>SOJO Choral Arts Seasons Chorale Choir</h1>
+  <nav class="site-nav" id="site-nav"></nav>
+</header>
+<main id="main-content">
+  <h2>Complimentary Concert Tickets</h2>
+  <div id="status" class="placeholder-note" style="display:none;" role="status"></div>
+  <div id="intro"></div>
+  <div id="content">Loading&hellip;</div>
+</main>
+<footer class="site-footer">Choir App &mdash; built for our community</footer>
+<script src="js/api.js"></script>
+<script>
+  const contentEl = document.getElementById('content');
+  const introEl = document.getElementById('intro');
+  const statusEl = document.getElementById('status');
+  let data = null;
+
+  function showStatus(message) {
+    statusEl.textContent = message;
+    statusEl.style.display = message ? '' : 'none';
+  }
+
+  function fmtDate(d) {
+    if (!d) return '';
+    const [y, m, day] = String(d).split('-').map(Number);
+    return new Date(y, m - 1, day).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
+  }
+
+  const ticketWord = n => `${n} ticket${n === 1 ? '' : 's'}`;
+
+  function render() {
+    const limit = data.limit;
+    const total = data.shows.reduce((a, s) => a + s.Mine, 0);
+    const deadline = data.shows.map(s => s.ClaimDeadline).filter(Boolean).sort()[0];
+    introEl.innerHTML = `<p>Each singer may have up to <strong>${ticketWord(limit)}</strong> in total${data.shows.length > 1 ? ' — at one showing, or split between them' : ''}.
+      ${deadline ? `Request or return tickets by <strong>${escapeHtml(fmtDate(deadline))}</strong>.` : ''}
+      Pick them up from the lobby attendant on concert day — just give your name.</p>
+      ${total ? `<p class="found-note">You have <strong>${ticketWord(total)}</strong> in total.</p>` : ''}`;
+
+    contentEl.innerHTML = data.shows.map(s => {
+      const room = limit - total + s.Mine; // most this singer could hold for this showing
+      const when = [fmtDate(s.Date), s.Time].filter(Boolean).join(' at ');
+      let actions = '';
+      if (!s.Open) {
+        actions = `<p class="ticket-closed">Requests for this showing are closed.</p>`;
+      } else {
+        const buttons = [];
+        for (let n = 1; n <= Math.min(room, limit); n++) {
+          if (n === s.Mine) continue;
+          const more = n > s.Mine;
+          if (more && n - s.Mine > s.Available) continue;
+          buttons.push(`<button class="btn" data-show="${s.Id}" data-qty="${n}">${s.Mine
+            ? (more ? `Change to ${ticketWord(n)}` : `Return ${s.Mine - n}, keep ${n}`)
+            : `Request ${ticketWord(n)}`}</button>`);
+        }
+        if (s.Mine) buttons.push(`<button class="btn" data-show="${s.Id}" data-qty="0">Return ${s.Mine === 1 ? 'it' : `all ${s.Mine}`}</button>`);
+        actions = buttons.length ? `<div class="ticket-actions">${buttons.join('')}</div>`
+          : (s.Available === 0 && !s.Mine ? `<p class="ticket-closed">All tickets for this showing have been claimed.</p>`
+            : `<p class="ticket-closed">You've already claimed your ${ticketWord(limit)}.</p>`);
+      }
+      return `<div class="card ticket-card">
+        <h3>${escapeHtml(s.Title)}${s.Time ? ` — ${escapeHtml(s.Time)}` : ''}</h3>
+        ${when ? `<p class="ticket-when">${escapeHtml(when)}</p>` : ''}
+        <p class="ticket-left">${s.Available} of ${s.Capacity} tickets still available</p>
+        <p class="ticket-mine">${s.Mine ? `You have <strong>${ticketWord(s.Mine)}</strong> for this showing.` : 'You have no tickets for this showing.'}</p>
+        ${actions}
+      </div>`;
+    }).join('') || `<p class="placeholder-note">There are no concerts with free singer tickets right now.</p>`;
+  }
+
+  async function load() {
+    try {
+      data = await fetchData('tickets');
+      render();
+    } catch (e) {
+      handleFetchError(contentEl, e);
+    }
+  }
+
+  const REASONS = {
+    closed: 'Requests for that showing have closed.',
+    'sold-out': 'Sorry, there aren’t enough tickets left for that showing.',
+    limit: 'That would be more than your total allowance.',
+    'picked-up': 'Those tickets have already been picked up.',
+    busy: 'The ticket list is busy — please try again.',
+  };
+
+  contentEl.addEventListener('click', async ev => {
+    const btn = ev.target.closest('button[data-show]');
+    if (!btn) return;
+    const qty = Number(btn.dataset.qty);
+    const show = data.shows.find(s => s.Id === Number(btn.dataset.show));
+    if (qty < show.Mine && !confirm(qty === 0 ? `Return your ${ticketWord(show.Mine)} for the ${show.Time} showing?` : `Return ${show.Mine - qty} and keep ${ticketWord(qty)}?`)) return;
+    contentEl.querySelectorAll('button[data-show]').forEach(b => { b.disabled = true; });
+    try {
+      const result = await postAction('setMyTickets', { showId: show.Id, quantity: qty });
+      showStatus(result.ok
+        ? (qty === 0 ? `Your tickets for the ${show.Time} showing have been returned.` : `You now have ${ticketWord(qty)} for the ${show.Time} showing.`)
+        : (REASONS[result.reason] || 'Something went wrong. Please try again.'));
+    } catch (e) {
+      showStatus(e.message === 'not-authorized' ? "You're not logged in anymore — refresh the page to log in again." : 'Something went wrong. Please try again.');
+    }
+    load();
+  });
+
+  (async () => {
+    await captureSsoEmail();
+    load();
+  })();
+</script>
+</body>
+</html>
