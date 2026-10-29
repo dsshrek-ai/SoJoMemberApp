@@ -285,11 +285,11 @@ CREATE TABLE IF NOT EXISTS choir_ticket_pickups (
   KEY (show_id, email)
 ) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- The two showings -- set show_date (and adjust anything else) in the admin
--- panel under TicketShows.
+-- The two showings, both on December 5 (adjust anything later in the admin
+-- panel under TicketShows).
 INSERT INTO choir_ticket_shows (title, show_date, time_text, capacity, claim_deadline, sort_order) VALUES
-  ('Sounds of the Season', NULL, '2:00 PM', 200, '2026-11-15', 10),
-  ('Sounds of the Season', NULL, '7:00 PM', 200, '2026-11-15', 20);
+  ('Sounds of the Season', '2026-12-05', '2:00 PM', 200, '2026-11-15', 10),
+  ('Sounds of the Season', '2026-12-05', '7:00 PM', 200, '2026-11-15', 20);
 
 -- How many free tickets one singer may hold across all showings.
 INSERT INTO choir_settings (setting_key, setting_value) VALUES ('TicketsPerSinger', '2');
