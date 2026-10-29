@@ -242,3 +242,70 @@ INSERT INTO choir_nav_items (label, page_file, sort_order) VALUES
 
 -- Only if choir_homework was already created before the Show/Hide column:
 -- ALTER TABLE choir_homework ADD COLUMN visible TINYINT(1) NOT NULL DEFAULT 1;
+
+-- ---------- SCHEMA CHANGE: complimentary concert tickets ----------
+-- Run once (the INSERTs below aren't guarded against a second run).
+-- Singers request 1-2 free tickets per showing on tickets.html until the
+-- showing's claim_deadline; the lobby attendant hands them out on desk.html.
+-- Each handout is a row in choir_ticket_pickups; Undo stamps undone_at
+-- instead of deleting, so mistakes stay visible in the history.
+
+CREATE TABLE IF NOT EXISTS choir_ticket_shows (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  title           VARCHAR(255) NOT NULL,
+  show_date       DATE NULL,
+  time_text       VARCHAR(20) NULL,          -- "2:00 PM", same format as choir_schedule
+  capacity        INT NOT NULL DEFAULT 200,  -- free tickets available for this showing
+  claim_deadline  DATE NULL,                 -- last day singers can request/return
+  sort_order      INT NOT NULL DEFAULT 0
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- One row per singer per showing; quantity 0 means they returned them all.
+CREATE TABLE IF NOT EXISTS choir_ticket_requests (
+  id           INT AUTO_INCREMENT PRIMARY KEY,
+  show_id      INT NOT NULL,
+  email        VARCHAR(255) NOT NULL,
+  member_name  VARCHAR(255) NOT NULL,
+  quantity     INT NOT NULL DEFAULT 0,
+  updated_at   DATETIME NULL,
+  UNIQUE KEY uq_show_email (show_id, email),
+  KEY (show_id)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS choir_ticket_pickups (
+  id              INT AUTO_INCREMENT PRIMARY KEY,
+  show_id         INT NOT NULL,
+  email           VARCHAR(255) NOT NULL,
+  member_name     VARCHAR(255) NOT NULL,
+  quantity        INT NOT NULL,
+  handed_out_by   VARCHAR(255) NULL,
+  handed_out_at   DATETIME NOT NULL,
+  undone_at       DATETIME NULL,
+  undone_by       VARCHAR(255) NULL,
+  KEY (show_id, email)
+) DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- The two showings -- set show_date (and adjust anything else) in the admin
+-- panel under TicketShows.
+INSERT INTO choir_ticket_shows (title, show_date, time_text, capacity, claim_deadline, sort_order) VALUES
+  ('Sounds of the Season', NULL, '2:00 PM', 200, '2026-11-15', 10),
+  ('Sounds of the Season', NULL, '7:00 PM', 200, '2026-11-15', 20);
+
+-- How many free tickets one singer may hold across all showings.
+INSERT INTO choir_settings (setting_key, setting_value) VALUES ('TicketsPerSinger', '2');
+
+INSERT INTO choir_nav_items (label, page_file, sort_order) VALUES ('Tickets', 'tickets.html', 45);
+
+-- The lobby desk (desk.html) needs its own My Apps Hub grant, so volunteers
+-- don't get the whole admin panel. Admin Panel users can open it too.
+INSERT INTO apps (app_key, name, is_public, description, icon_emoji, icon_color_class, launch_url, sso_enabled) VALUES
+  ('sojo-ticket-desk', 'SoJo Ticket Desk', 0,
+   'Lobby desk for handing out singers'' complimentary concert tickets.',
+   '🎟️', 'icon-rose', 'https://dsshrek-ai.github.io/SoJoMemberApp/desk.html', 1)
+ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description), launch_url = VALUES(launch_url);
+
+-- Grant a lobby attendant (change the username):
+-- INSERT INTO app_access (user_id, app_id)
+-- SELECT u.id, a.id FROM users u JOIN apps a ON a.app_key = 'sojo-ticket-desk'
+-- WHERE u.username = 'attendant@example.com'
+-- ON DUPLICATE KEY UPDATE user_id = app_access.user_id;

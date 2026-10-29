@@ -107,6 +107,7 @@
           <option value="frequentAbsences">Frequent Absences</option>
           <option value="appUsage">App Users by Day</option>
           <option value="memberList">Member List</option>
+          <option value="ticketRequests">Concert Tickets</option>
         </select>
         <div class="report-filters" id="report-filters">
           <label>From<br><input type="date" id="report-from"></label>
@@ -152,12 +153,17 @@
     // SongID matches a Songs row's Id (see the Songs table's Id, exposed by
     // the `songs` public action); look that id up there when adding a row.
     SongFiles: ['SongID', 'FileType', 'PartLabel', 'FileName', 'SortOrder'],
+    // Complimentary concert tickets: one row per showing (capacity + last day
+    // singers can request/return), and the singers' requests (ShowID = a
+    // TicketShows row's Id). Handouts at the lobby desk live in their own table.
+    TicketShows: ['Title', 'Date', 'Time', 'Capacity', 'ClaimDeadline', 'SortOrder'],
+    TicketRequests: ['ShowID', 'Email', 'MemberName', 'Quantity'],
   };
   const LONG_TEXT_COLUMNS = new Set(['Message', 'Notes', 'Note', 'Value']);
-  const DATE_COLUMNS = new Set(['Date', 'LastRehearsedDate', 'DueDate']);
+  const DATE_COLUMNS = new Set(['Date', 'LastRehearsedDate', 'DueDate', 'ClaimDeadline']);
   const TIME_COLUMNS = new Set(['Time']);
   const POSITION_COLUMNS = new Set(['Position']);
-  const NUMBER_COLUMNS = new Set(['SortOrder', 'SongID', 'Sequence']);
+  const NUMBER_COLUMNS = new Set(['SortOrder', 'SongID', 'Sequence', 'Capacity', 'ShowID', 'Quantity']);
   // Stored as a MySQL TINYINT (1/0), unlike Pinned's 'Y'/'N' text column below.
   const YES_NO_NUMERIC_COLUMNS = new Set(['Visible']);
   // Also TINYINT 1/0 (choir_homework.visible), labeled Show/Hide; a blank
@@ -569,7 +575,7 @@
   function applyReportDefaults() {
     const report = reportSelect.value;
     // Member List isn't date-based, so hide the date filters for it.
-    const datesApply = report !== 'memberList';
+    const datesApply = report !== 'memberList' && report !== 'ticketRequests';
     document.getElementById('report-filters').style.display = datesApply ? '' : 'none';
     document.getElementById('report-filters-note').style.display = datesApply ? '' : 'none';
     if (report === 'volunteerSignups') {
@@ -615,6 +621,8 @@
       renderMemberListReport(result);
     } else if (reportSelect.value === 'appUsage') {
       renderAppUsageReport(result);
+    } else if (reportSelect.value === 'ticketRequests') {
+      renderTicketRequestsReport(result);
     } else {
       renderVolunteerSignupsReport(result.rows);
     }
@@ -682,6 +690,33 @@
     reportContainer.innerHTML = `<h2>Member List</h2>
       <p><strong>${result.rows.length} people</strong> &middot; each listed once, in their highest group</p>
       ${sections || '<p class="placeholder-note">No one found.</p>'}`;
+  }
+
+  function renderTicketRequestsReport(result) {
+    const sections = result.shows.map(s => {
+      const requested = s.Requested;
+      const bodyHtml = s.Singers.map(r => `
+        <tr>
+          <td>${escapeHtml(r.Name)}</td>
+          <td>${r.Requested}</td>
+          <td>${r.PickedUp}${r.PickedUp && r.PickedUp >= r.Requested ? ' &#10003;' : ''}</td>
+        </tr>
+      `).join('');
+      return `
+        <h3>${escapeHtml(s.Title)}${s.Time ? ` &mdash; ${escapeHtml(s.Time)}` : ''}${s.Date ? ` (${escapeHtml(formatReportDate(s.Date))})` : ''}</h3>
+        <p><strong>${requested}</strong> of ${s.Capacity} requested by ${s.Singers.length} singer${s.Singers.length === 1 ? '' : 's'}
+          &middot; ${s.Available} still available &middot; <strong>${s.PickedUp}</strong> picked up, ${requested - s.PickedUp} still to collect
+          ${s.ClaimDeadline ? `&middot; requests close ${escapeHtml(formatReportDate(s.ClaimDeadline))}` : ''}</p>
+        ${s.Singers.length ? `<div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead><tr><th scope="col">Name</th><th scope="col">Requested</th><th scope="col">Picked Up</th></tr></thead>
+            <tbody>${bodyHtml}</tbody>
+          </table>
+        </div>` : '<p class="placeholder-note">No requests yet.</p>'}
+      `;
+    }).join('');
+    reportContainer.innerHTML = `<h2>Complimentary Concert Tickets</h2>
+      ${sections || '<p class="placeholder-note">No showings are set up (Tables &rarr; TicketShows).</p>'}`;
   }
 
   function renderAppUsageReport(result) {

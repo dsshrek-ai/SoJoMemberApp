@@ -93,6 +93,26 @@ function requireChoirAdminAccess(array $user): void {
   }
 }
 
+function hasGrant(array $user, string $appKey): bool {
+  $stmt = db()->prepare(
+    'SELECT 1 FROM app_access aa JOIN apps a ON a.id = aa.app_id
+     WHERE aa.user_id = ? AND a.app_key = ?'
+  );
+  $stmt->bind_param('is', $user['id'], $appKey);
+  $stmt->execute();
+  $ok = (bool)$stmt->get_result()->fetch_row();
+  $stmt->close();
+  return $ok;
+}
+
+// The lobby ticket desk: its own grant, so volunteers don't need the whole
+// admin panel -- but Admin Panel users can run the desk too.
+function requireTicketDeskAccess(array $user): void {
+  if (!hasGrant($user, 'sojo-ticket-desk') && !hasGrant($user, 'choir-admin-panel')) {
+    fail('Not authorized for the Ticket Desk', 403);
+  }
+}
+
 function requireMemberAccess(array $user): void {
   $stmt = db()->prepare(
     'SELECT 1 FROM app_access aa JOIN apps a ON a.id = aa.app_id
@@ -199,6 +219,16 @@ $DATA_TABLES = [
   // Part tracks + director notes for a song's own index page (song.html).
   // FileName is just the filename -- the real URL is built at read time from
   // SONG_FILES_BASE_URL + the owning song's FolderSlug (see the `song` action).
+  // Complimentary concert tickets (tickets.html / desk.html). Requests and
+  // handouts normally come from those pages; the admin tables are for setting
+  // up the showings and for fixing or adding a request by hand.
+  'TicketShows' => ['table' => 'choir_ticket_shows', 'columns' => [
+    'Title' => 'title', 'Date' => 'show_date', 'Time' => 'time_text', 'Capacity' => 'capacity',
+    'ClaimDeadline' => 'claim_deadline', 'SortOrder' => 'sort_order',
+  ]],
+  'TicketRequests' => ['table' => 'choir_ticket_requests', 'columns' => [
+    'ShowID' => 'show_id', 'Email' => 'email', 'MemberName' => 'member_name', 'Quantity' => 'quantity',
+  ]],
   'SongFiles' => ['table' => 'choir_song_files', 'columns' => [
     'SongID' => 'song_id', 'FileType' => 'file_type', 'PartLabel' => 'part_label',
     'FileName' => 'filename', 'SortOrder' => 'sort_order',
@@ -207,14 +237,14 @@ $DATA_TABLES = [
 
 // Columns that must round-trip as JSON numbers, not strings (so `>=` comparisons
 // in the front end work correctly instead of comparing lexically).
-$NUMERIC_COLUMNS = ['SlotsNeeded', 'SortOrder', 'Visible', 'SongID', 'Sequence', 'Show'];
+$NUMERIC_COLUMNS = ['SlotsNeeded', 'SortOrder', 'Visible', 'SongID', 'Sequence', 'Show', 'Capacity', 'ShowID', 'Quantity'];
 
 // Columns backed by a real SQL DATE column (see schema.sql). MySQL rejects an
 // empty string for a DATE column outright (it's not a valid date), so a
 // blank date field has to be sent as NULL instead of '' or the whole
 // insert/update fails — that's what made LastRehearsedDate feel "required"
 // even though the column itself is nullable.
-$DATE_COLUMNS = ['Date', 'LastRehearsedDate', 'DueDate'];
+$DATE_COLUMNS = ['Date', 'LastRehearsedDate', 'DueDate', 'ClaimDeadline'];
 
 // The public `settings` action must NOT return every row — Settings also holds
 // DirectorEmail. Allowlist, not blocklist, matching the old Code.gs behavior.
@@ -313,6 +343,214 @@ function getSetting(string $key): ?string {
   $row = $stmt->get_result()->fetch_assoc();
   $stmt->close();
   return $row ? $row['setting_value'] : null;
+}
+
+// ---- Complimentary concert tickets ----
+
+function ticketsPerSinger(): int {
+  $v = (int)(getSetting('TicketsPerSinger') ?? 2);
+  return $v > 0 ? $v : 2;
+}
+
+// Every showing with how many tickets are spoken for and still available.
+function ticketShows(): array {
+  $rows = db()->query(
+    'SELECT s.*, COALESCE(SUM(r.quantity), 0) AS requested,
+            (s.claim_deadline IS NULL OR s.claim_deadline >= CURDATE()) AS is_open
+     FROM choir_ticket_shows s
+     LEFT JOIN choir_ticket_requests r ON r.show_id = s.id
+     GROUP BY s.id
+     ORDER BY s.show_date IS NULL, s.show_date, s.sort_order, s.id'
+  )->fetch_all(MYSQLI_ASSOC);
+  return array_map(function ($r) {
+    $capacity = (int)$r['capacity'];
+    $requested = (int)$r['requested'];
+    return [
+      'Id' => (int)$r['id'], 'Title' => $r['title'], 'Date' => $r['show_date'], 'Time' => (string)$r['time_text'],
+      'Capacity' => $capacity, 'Requested' => $requested, 'Available' => max(0, $capacity - $requested),
+      'ClaimDeadline' => $r['claim_deadline'], 'Open' => (bool)$r['is_open'],
+    ];
+  }, $rows);
+}
+
+function myTicketRequests(string $email): array {
+  $stmt = db()->prepare('SELECT show_id, quantity FROM choir_ticket_requests WHERE email = ? AND quantity > 0');
+  $stmt->bind_param('s', $email);
+  $stmt->execute();
+  $out = [];
+  foreach ($stmt->get_result()->fetch_all(MYSQLI_ASSOC) as $r) {
+    $out[(int)$r['show_id']] = (int)$r['quantity'];
+  }
+  $stmt->close();
+  return $out;
+}
+
+function pickedUpCount(int $showId, string $email): int {
+  $stmt = db()->prepare('SELECT COALESCE(SUM(quantity), 0) AS n FROM choir_ticket_pickups WHERE show_id = ? AND email = ? AND undone_at IS NULL');
+  $stmt->bind_param('is', $showId, $email);
+  $stmt->execute();
+  $n = (int)$stmt->get_result()->fetch_assoc()['n'];
+  $stmt->close();
+  return $n;
+}
+
+// The singer's name for the desk list: their roster name if we can find it,
+// otherwise their MyDataWorld display name, otherwise the email.
+function singerNameFor(array $user): string {
+  try {
+    $target = mb_strtolower((string)$user['username']);
+    foreach ((fetchAppsScript('getSingers', [], true)['singers'] ?? []) as $singer) {
+      if (mb_strtolower(trim((string)($singer['email'] ?? ''))) === $target) {
+        $name = memberSummary($singer)['name'];
+        if ($name !== '') {
+          return $name;
+        }
+        break;
+      }
+    }
+  } catch (Throwable $e) {
+    // roster lookup is best-effort
+  }
+  return trim((string)($user['display_name'] ?? '')) ?: (string)$user['username'];
+}
+
+// Sets how many tickets the logged-in singer holds for one showing (0 = return
+// them all). Checks the deadline, the per-singer limit across all showings,
+// and seats left -- under a lock so two singers can't take the last seat.
+function setMyTickets(array $user, int $showId, int $quantity): array {
+  $email = (string)$user['username'];
+  // Before the lock: the roster call can take a few seconds.
+  $name = $quantity > 0 ? singerNameFor($user) : '';
+  $conn = db();
+  $got = $conn->query("SELECT GET_LOCK('choir_tickets', 10) AS got")->fetch_assoc();
+  if (!$got || (int)$got['got'] !== 1) {
+    return ['ok' => false, 'reason' => 'busy'];
+  }
+  try {
+    $show = null;
+    foreach (ticketShows() as $s) {
+      if ($s['Id'] === $showId) { $show = $s; break; }
+    }
+    if (!$show) {
+      return ['ok' => false, 'reason' => 'not-found'];
+    }
+    if (!$show['Open']) {
+      return ['ok' => false, 'reason' => 'closed'];
+    }
+    $limit = ticketsPerSinger();
+    if ($quantity < 0 || $quantity > $limit) {
+      return ['ok' => false, 'reason' => 'invalid'];
+    }
+    $mine = myTicketRequests($email);
+    $current = $mine[$showId] ?? 0;
+    $elsewhere = array_sum($mine) - $current;
+    if ($elsewhere + $quantity > $limit) {
+      return ['ok' => false, 'reason' => 'limit', 'limit' => $limit, 'elsewhere' => $elsewhere];
+    }
+    if ($quantity - $current > $show['Available']) {
+      return ['ok' => false, 'reason' => 'sold-out', 'available' => $show['Available']];
+    }
+    if ($quantity < pickedUpCount($showId, $email)) {
+      return ['ok' => false, 'reason' => 'picked-up'];
+    }
+    // A return (0) keeps the name already on file.
+    $stmt = $conn->prepare(
+      "INSERT INTO choir_ticket_requests (show_id, email, member_name, quantity, updated_at) VALUES (?, ?, ?, ?, NOW())
+       ON DUPLICATE KEY UPDATE quantity = VALUES(quantity),
+         member_name = IF(VALUES(member_name) = '', member_name, VALUES(member_name)), updated_at = NOW()"
+    );
+    $stmt->bind_param('issi', $showId, $email, $name, $quantity);
+    $stmt->execute();
+    $stmt->close();
+    return ['ok' => true];
+  } finally {
+    $conn->query("SELECT RELEASE_LOCK('choir_tickets')");
+  }
+}
+
+// Everyone holding tickets for a showing, with what they've already been handed.
+function deskList(int $showId): array {
+  $stmt = db()->prepare(
+    'SELECT r.email, r.member_name, r.quantity,
+            COALESCE((SELECT SUM(p.quantity) FROM choir_ticket_pickups p
+                      WHERE p.show_id = r.show_id AND p.email = r.email AND p.undone_at IS NULL), 0) AS picked,
+            (SELECT MAX(p.handed_out_at) FROM choir_ticket_pickups p
+              WHERE p.show_id = r.show_id AND p.email = r.email AND p.undone_at IS NULL) AS picked_at
+     FROM choir_ticket_requests r
+     WHERE r.show_id = ? AND r.quantity > 0'
+  );
+  $stmt->bind_param('i', $showId);
+  $stmt->execute();
+  $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
+  $stmt->close();
+  $singers = array_map(fn($r) => [
+    'Email' => $r['email'], 'Name' => $r['member_name'], 'Requested' => (int)$r['quantity'],
+    'PickedUp' => (int)$r['picked'], 'PickedUpAt' => $r['picked_at'],
+  ], $rows);
+
+  $stmt = db()->prepare(
+    'SELECT id, member_name, quantity, handed_out_by, handed_out_at FROM choir_ticket_pickups
+     WHERE show_id = ? AND undone_at IS NULL ORDER BY handed_out_at DESC, id DESC LIMIT 8'
+  );
+  $stmt->bind_param('i', $showId);
+  $stmt->execute();
+  $recent = array_map(fn($r) => [
+    'Id' => (int)$r['id'], 'Name' => $r['member_name'], 'Quantity' => (int)$r['quantity'],
+    'By' => $r['handed_out_by'], 'At' => $r['handed_out_at'],
+  ], $stmt->get_result()->fetch_all(MYSQLI_ASSOC));
+  $stmt->close();
+  return ['singers' => $singers, 'recent' => $recent];
+}
+
+function deskGive(array $user, int $showId, string $email, int $quantity): array {
+  $conn = db();
+  $got = $conn->query("SELECT GET_LOCK('choir_tickets', 10) AS got")->fetch_assoc();
+  if (!$got || (int)$got['got'] !== 1) {
+    return ['ok' => false, 'reason' => 'busy'];
+  }
+  try {
+    $stmt = $conn->prepare('SELECT member_name, quantity FROM choir_ticket_requests WHERE show_id = ? AND email = ?');
+    $stmt->bind_param('is', $showId, $email);
+    $stmt->execute();
+    $req = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$req || (int)$req['quantity'] <= 0) {
+      return ['ok' => false, 'reason' => 'not-found'];
+    }
+    $left = (int)$req['quantity'] - pickedUpCount($showId, $email);
+    if ($quantity < 1 || $quantity > $left) {
+      return ['ok' => false, 'reason' => 'too-many', 'left' => max(0, $left)];
+    }
+    $by = (string)$user['username'];
+    $stmt = $conn->prepare(
+      'INSERT INTO choir_ticket_pickups (show_id, email, member_name, quantity, handed_out_by, handed_out_at) VALUES (?, ?, ?, ?, ?, NOW())'
+    );
+    $stmt->bind_param('issis', $showId, $email, $req['member_name'], $quantity, $by);
+    $stmt->execute();
+    $id = $stmt->insert_id;
+    $stmt->close();
+    return ['ok' => true, 'pickupId' => $id];
+  } finally {
+    $conn->query("SELECT RELEASE_LOCK('choir_tickets')");
+  }
+}
+
+function getTicketRequestsReport(): array {
+  $shows = ticketShows();
+  $out = [];
+  foreach ($shows as $s) {
+    $list = deskList($s['Id'])['singers'];
+    usort($list, fn($a, $b) => strcasecmp(sortNameKey($a['Name']), sortNameKey($b['Name'])));
+    $out[] = $s + ['Singers' => $list, 'PickedUp' => array_sum(array_column($list, 'PickedUp'))];
+  }
+  return ['shows' => $out];
+}
+
+// "Mary Ann Smith" -> "smith mary ann", so lists sort by last name.
+function sortNameKey(string $name): string {
+  $parts = preg_split('/\s+/', trim($name));
+  $last = array_pop($parts);
+  return mb_strtolower($last . ' ' . implode(' ', $parts));
 }
 
 // ---- Volunteer tasks (public status + admin phone rollup) ----
@@ -523,9 +761,17 @@ function sendAbsenceEmail(string $memberName, string $date, string $position, st
 // fetches the whole roster server-side and returns only the ONE matching
 // member's minimal fields -- never the raw roster, never this URL.
 
-function fetchAppsScript(string $action, array $params = []): array {
+// $soft: throw instead of ending the request with a 502, for callers that
+// can carry on without the roster.
+function fetchAppsScript(string $action, array $params = [], bool $soft = false): array {
+  $stop = function (string $message) use ($soft): void {
+    if ($soft) {
+      throw new RuntimeException($message);
+    }
+    fail($message, 502);
+  };
   if (!defined('APPS_SCRIPT_URL') || APPS_SCRIPT_URL === '') {
-    fail('The SOJO roster isn\'t configured yet', 502);
+    $stop('The SOJO roster isn\'t configured yet');
   }
   $query = http_build_query(array_merge(['action' => $action], $params));
   $ch = curl_init(APPS_SCRIPT_URL . '?' . $query);
@@ -538,12 +784,12 @@ function fetchAppsScript(string $action, array $params = []): array {
   if ($raw === false) {
     $err = curl_error($ch);
     curl_close($ch);
-    fail('Could not reach the SOJO roster: ' . $err, 502);
+    $stop('Could not reach the SOJO roster: ' . $err);
   }
   curl_close($ch);
   $decoded = json_decode($raw, true);
   if (!is_array($decoded)) {
-    fail('Unexpected response from the SOJO roster', 502);
+    $stop('Unexpected response from the SOJO roster');
   }
   return $decoded;
 }
@@ -1052,6 +1298,54 @@ switch ($action) {
 
   // -- Member writes (POST, same login + app_access requirement) --
 
+  // -- Complimentary concert tickets --
+
+  case 'tickets': {
+    $user = requireMember();
+    $mine = myTicketRequests((string)$user['username']);
+    respond([
+      'shows' => array_map(fn($s) => $s + ['Mine' => $mine[$s['Id']] ?? 0], ticketShows()),
+      'limit' => ticketsPerSinger(),
+    ]);
+  }
+
+  case 'setMyTickets': {
+    $user = requireMember();
+    respond(setMyTickets($user, (int)($body['showId'] ?? 0), (int)($body['quantity'] ?? -1)));
+  }
+
+  case 'deskCheckAccess': {
+    $user = requireUser();
+    requireTicketDeskAccess($user);
+    respond(['ok' => true, 'displayName' => $user['display_name'], 'shows' => ticketShows()]);
+  }
+
+  case 'deskList': {
+    $user = requireUser();
+    requireTicketDeskAccess($user);
+    respond(['ok' => true] + deskList((int)($_GET['showId'] ?? 0)));
+  }
+
+  case 'deskGive': {
+    $user = requireUser();
+    requireTicketDeskAccess($user);
+    respond(deskGive($user, (int)($body['showId'] ?? 0), (string)($body['email'] ?? ''), (int)($body['quantity'] ?? 0)));
+  }
+
+  // Undo a handout (wrong person tapped). Kept as history, just marked undone.
+  case 'deskUndo': {
+    $user = requireUser();
+    requireTicketDeskAccess($user);
+    $id = (int)($body['pickupId'] ?? 0);
+    $by = (string)$user['username'];
+    $stmt = db()->prepare('UPDATE choir_ticket_pickups SET undone_at = NOW(), undone_by = ? WHERE id = ? AND undone_at IS NULL');
+    $stmt->bind_param('si', $by, $id);
+    $stmt->execute();
+    $n = $stmt->affected_rows;
+    $stmt->close();
+    respond(['ok' => $n === 1]);
+  }
+
   case 'claimSlot':
     requireMember();
     respond(claimSlot($body));
@@ -1142,6 +1436,9 @@ switch ($action) {
     }
     if ($report === 'appUsage') {
       respond(['ok' => true] + getAppUsageReport($from, $to));
+    }
+    if ($report === 'ticketRequests') {
+      respond(['ok' => true] + getTicketRequestsReport());
     }
     if ($report === 'attendanceByDay') {
       respond(['ok' => true] + getAttendanceByDayReport($from, $to));

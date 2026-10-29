@@ -112,6 +112,36 @@ been set up yet, rather than showing something broken.
 member can tap **Copy Link** to copy that registration link to their clipboard and paste it into
 a text or email to invite someone.
 
+## Complimentary concert tickets
+
+Singers request their free tickets on the **Tickets** page of the member app, and the lobby
+attendant hands them out on the **Ticket Desk** page.
+
+**Set up the showings** → Tables → `TicketShows`. There's one row per showing: Title, Date, Time,
+Capacity (how many free tickets that showing has), ClaimDeadline (the last day singers can
+request or return tickets; the page closes the day after), and SortOrder. How many tickets one
+singer may have **in total across all showings** is the `TicketsPerSinger` Settings row (2).
+
+**What singers see** → each showing, how many tickets are left, and how many they have. They can
+request 1 or 2 tickets, move them between showings, or return some or all, up until the deadline.
+Nobody can take more than a showing has left.
+
+**See who asked for what** → Reports → **Concert Tickets**. It lists each showing's singers by last
+name, with how many they requested and how many they've picked up. You can print it as a paper
+backup for the desk. To fix a singer's request after the deadline, edit their row in Tables →
+`TicketRequests` (Quantity 0 = none).
+
+**The lobby desk** → open `desk.html` (it's the **SoJo Ticket Desk** tile in My Apps Hub).
+Attendants need the "SoJo Ticket Desk" grant in My Apps Hub. Anyone with Admin Panel access can
+use it too.
+- The first time it opens, pick the showing (2:00 or 7:00). That device stays on that showing
+  until someone taps **Change showing**, so each handout is just: find the name, tap it, tap
+  **Give**.
+- Names are sorted by last name. Use the A–Z letters to jump through the list, since spellings
+  vary. The search box is optional.
+- If a handout went to the wrong person, tap **Undo** next to it under "Just handed out".
+- Two devices can work the same showing; each refreshes every 30 seconds.
+
 ## Formatting your text
 
 Message-style boxes (Announcements, Homework, Recognition, Sponsors, Schedule Notes, and the

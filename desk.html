@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ticket Desk | Choir App</title>
+<link rel="stylesheet" href="style.css">
+<style>
+  .desk-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem; }
+  .desk-head h2 { margin: 0; }
+  .desk-totals { display: flex; flex-wrap: wrap; gap: 1rem; font-size: 1.05rem; margin: 0.5rem 0 0.75rem; }
+  .desk-totals strong { font-size: 1.3rem; }
+  .desk-search { width: 100%; max-width: none; font-size: 1.1rem; padding: 0.6rem; box-sizing: border-box; margin-bottom: 0.5rem; }
+  .az-bar { position: sticky; top: 0; z-index: 5; display: flex; flex-wrap: wrap; gap: 0.15rem; background: var(--color-bg, #fff); padding: 0.35rem 0; }
+  .az-bar button { min-width: 2.1rem; padding: 0.35rem 0.2rem; font-size: 0.95rem; font-weight: bold; border: 1px solid var(--color-border); border-radius: 6px; background: var(--color-surface, #fff); cursor: pointer; }
+  .az-bar button:disabled { opacity: 0.3; cursor: default; }
+  .letter-head { scroll-margin-top: 7.5rem; margin: 0.9rem 0 0.25rem; font-weight: bold; font-size: 1.1rem; border-bottom: 2px solid var(--color-border); }
+  .singer-row { display: flex; align-items: center; gap: 0.75rem; width: 100%; text-align: left; font: inherit; font-size: 1.15rem;
+    padding: 0.85rem 0.9rem; margin: 0.35rem 0; border: 1px solid var(--color-border); border-radius: var(--radius, 8px);
+    background: var(--color-surface, #fff); cursor: pointer; }
+  .singer-row .nm { flex: 1; font-weight: bold; }
+  .singer-row .ct { white-space: nowrap; }
+  .singer-row.done { opacity: 0.55; background: var(--color-pinned-bg, #f4f4f4); }
+  .singer-row.part { border-left: 6px solid #c58a00; }
+  .recent { margin: 0.5rem 0 1rem; }
+  .recent li { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid var(--color-border); }
+  .recent .hint { display: block; font-size: 0.9rem; opacity: 0.75; margin-bottom: 0.25rem; }
+  .az-bar { margin-bottom: 0.5rem; }
+  .recent ul { list-style: none; padding: 0; margin: 0; }
+  #give-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; align-items: center; justify-content: center; padding: 1rem; }
+  #give-modal .card { width: 100%; max-width: 460px; text-align: center; }
+  #give-modal .give-name { font-size: 1.6rem; font-weight: bold; margin: 0.5rem 0; }
+  #give-modal .give-btns { display: flex; flex-direction: column; gap: 0.6rem; margin-top: 1rem; }
+  #give-modal .give-btns .btn { font-size: 1.25rem; padding: 0.9rem; }
+  .show-pick .btn { display: block; width: 100%; font-size: 1.2rem; padding: 1rem; margin: 0.6rem 0; }
+</style>
+</head>
+<body>
+<a href="#main-content" class="skip-link">Skip to main content</a>
+<header class="site-header">
+  <h1>SOJO Choral Arts &mdash; Ticket Desk</h1>
+</header>
+<main id="main-content">
+  <div id="login-screen" class="card" style="display:none;">
+    <h2>Log In</h2>
+    <p id="auth-error" class="placeholder-note" style="display:none;"></p>
+    <label for="login-email">Email</label>
+    <input type="email" id="login-email" autocomplete="username">
+    <label for="login-pw">Password</label>
+    <input type="password" id="login-pw" autocomplete="current-password">
+    <p><button id="login-btn" class="btn">Log In</button></p>
+    <p class="placeholder-note">Same login as My Apps Hub. You need to be granted the Ticket Desk (or the Admin Panel) there first.</p>
+  </div>
+  <div id="desk" style="display:none;"></div>
+</main>
+<div id="give-modal" role="dialog" aria-modal="true" aria-labelledby="give-title">
+  <div class="card">
+    <h2 id="give-title">Hand out tickets</h2>
+    <div class="give-name" id="give-name"></div>
+    <p id="give-info"></p>
+    <div class="give-btns" id="give-btns"></div>
+  </div>
+</div>
+<footer class="site-footer">Choir App &mdash; lobby ticket desk</footer>
+<script src="js/api.js"></script>
+<script>
+  // Session-scoped login (like admin.html), since a lobby device is shared.
+  const AUTH_KEY = 'choirDeskAuth';
+  const SHOW_KEY = 'choirDeskShow';   // the showing this device works -- chosen once
+  let auth = null;
+  let shows = [];
+  let showId = null;
+  let list = { singers: [], recent: [] };
+  let filter = '';
+  let refreshTimer = null;
+
+  const deskEl = document.getElementById('desk');
+  const loginEl = document.getElementById('login-screen');
+  const modal = document.getElementById('give-modal');
+
+  function loadAuth() { try { return JSON.parse(sessionStorage.getItem(AUTH_KEY)); } catch { return null; } }
+  function saveAuth(a) { sessionStorage.setItem(AUTH_KEY, JSON.stringify(a)); }
+  function getShowId() { try { return Number(localStorage.getItem(SHOW_KEY)) || null; } catch { return null; } }
+  function setShowId(id) { try { if (id) localStorage.setItem(SHOW_KEY, String(id)); else localStorage.removeItem(SHOW_KEY); } catch {} }
+
+  async function call(action, payload, method) {
+    const headers = { 'Content-Type': 'text/plain' };
+    if (auth && auth.token) headers.Authorization = `Bearer ${auth.token}`;
+    const res = method === 'GET'
+      ? await fetch(`${CONFIG.API_URL}?${new URLSearchParams({ action, ...(payload || {}) })}`, { headers })
+      : await fetch(CONFIG.API_URL, { method: 'POST', headers, body: JSON.stringify({ action, ...(payload || {}) }) });
+    if (res.status === 401 || res.status === 403) throw new Error('not-authorized');
+    return res.json();
+  }
+
+  // "Mary Ann Smith" -> "smith mary ann"
+  function sortKey(name) {
+    const parts = String(name).trim().split(/\s+/);
+    const last = parts.pop() || '';
+    return (last + ' ' + parts.join(' ')).toLowerCase();
+  }
+  const lastInitial = name => (sortKey(name)[0] || '#').toUpperCase().replace(/[^A-Z]/, '#');
+  const ticketWord = n => `${n} ticket${n === 1 ? '' : 's'}`;
+  const timeOf = ts => ts ? new Date(ts.replace(' ', 'T')).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+
+  function showLogin(message) {
+    sessionStorage.removeItem(AUTH_KEY);
+    auth = null;
+    deskEl.style.display = 'none';
+    loginEl.style.display = '';
+    const err = document.getElementById('auth-error');
+    err.textContent = message || '';
+    err.style.display = message ? '' : 'none';
+  }
+
+  async function start() {
+    try {
+      const res = await call('deskCheckAccess', {}, 'POST');
+      shows = res.shows || [];
+    } catch (e) {
+      showLogin(e.message === 'not-authorized' && auth ? "You're logged in, but not set up for the Ticket Desk. Ask to be granted it in My Apps Hub." : '');
+      return;
+    }
+    loginEl.style.display = 'none';
+    deskEl.style.display = '';
+    showId = getShowId();
+    if (!shows.some(s => s.Id === showId)) showId = null;
+    if (showId) await loadList(); else renderShowPicker();
+  }
+
+  // Chosen once per device -- after that every handout is for this showing.
+  function renderShowPicker() {
+    clearInterval(refreshTimer);
+    deskEl.innerHTML = `<div class="card show-pick">
+      <h2>Which showing is this desk for?</h2>
+      <p>The desk will stay on this showing for every singer until you change it.</p>
+      ${shows.map(s => `<button class="btn" data-pick="${s.Id}">${escapeHtml(s.Time || s.Title)} — ${escapeHtml(s.Title)}</button>`).join('')
+        || '<p class="placeholder-note">No showings are set up yet (admin panel → TicketShows).</p>'}
+    </div>`;
+    deskEl.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => {
+      showId = Number(b.dataset.pick);
+      setShowId(showId);
+      loadList();
+    }));
+  }
+
+  async function loadList() {
+    try {
+      const res = await call('deskList', { showId }, 'GET');
+      list = res;
+      render();
+    } catch (e) {
+      if (e.message === 'not-authorized') showLogin('Your login has expired. Please log in again.');
+      else deskEl.innerHTML = `<p class="placeholder-note">Couldn't load the list — check the connection.</p>`;
+    }
+    clearInterval(refreshTimer);
+    // Pick up handouts made at another desk device for the same showing.
+    refreshTimer = setInterval(() => { if (modal.style.display !== 'flex') loadListQuiet(); }, 30000);
+  }
+
+  async function loadListQuiet() {
+    try { list = await call('deskList', { showId }, 'GET'); render(); } catch (e) { /* try again next tick */ }
+  }
+
+  function render() {
+    const show = shows.find(s => s.Id === showId) || {};
+    const singers = list.singers.slice().sort((a, b) => sortKey(a.Name).localeCompare(sortKey(b.Name)));
+    const requested = singers.reduce((a, s) => a + s.Requested, 0);
+    const handed = singers.reduce((a, s) => a + s.PickedUp, 0);
+    const words = filter.toLowerCase().split(/\s+/).filter(Boolean);
+    const shown = singers.filter(s => words.every(w => s.Name.toLowerCase().includes(w)));
+    const letters = [...new Set(shown.map(s => lastInitial(s.Name)))];
+    let lastLetter = '';
+    const rows = shown.map(s => {
+      const left = s.Requested - s.PickedUp;
+      const letter = lastInitial(s.Name);
+      const head = letter !== lastLetter ? `<div class="letter-head" id="letter-${letter}">${letter}</div>` : '';
+      lastLetter = letter;
+      const cls = left === 0 ? ' done' : s.PickedUp ? ' part' : '';
+      const status = left === 0 ? `✓ Picked up ${s.PickedUp} at ${timeOf(s.PickedUpAt)}`
+        : s.PickedUp ? `${s.PickedUp} of ${s.Requested} picked up` : ticketWord(s.Requested);
+      return `${head}<button class="singer-row${cls}" data-email="${escapeHtml(s.Email)}"><span class="nm">${escapeHtml(s.Name)}</span><span class="ct">${escapeHtml(status)}</span></button>`;
+    }).join('');
+
+    deskEl.innerHTML = `
+      <div class="desk-head">
+        <h2>${escapeHtml(show.Time || '')} showing — ${escapeHtml(show.Title || '')}</h2>
+        <button class="btn" id="switch-show">Change showing</button>
+      </div>
+      <div class="desk-totals">
+        <span>Requested <strong>${requested}</strong></span>
+        <span>Handed out <strong>${handed}</strong></span>
+        <span>Still to collect <strong>${requested - handed}</strong></span>
+      </div>
+      ${list.recent.length ? `<div class="card recent"><strong>Just handed out</strong> <span class="hint">Tap Undo if it went to the wrong person.</span>
+        <ul>${list.recent.map(r => `<li><span>${escapeHtml(r.Name)} — ${ticketWord(r.Quantity)} at ${timeOf(r.At)}</span>
+          <button class="btn" data-undo="${r.Id}">Undo</button></li>`).join('')}</ul></div>` : ''}
+      <input type="search" class="desk-search" id="desk-search" placeholder="Search (optional) — or scroll the list" value="${escapeHtml(filter)}">
+      <div class="az-bar">${'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('').map(l => `<button data-jump="${l}" ${letters.includes(l) ? '' : 'disabled'}>${l}</button>`).join('')}</div>
+      <div id="rows">${rows || `<p class="placeholder-note">${singers.length ? 'No one matches.' : 'No singers have requested tickets for this showing.'}</p>`}</div>`;
+
+    document.getElementById('switch-show').addEventListener('click', () => {
+      if (confirm('Switch this desk to a different showing?')) { setShowId(null); showId = null; renderShowPicker(); }
+    });
+    const search = document.getElementById('desk-search');
+    search.addEventListener('input', () => {
+      filter = search.value;
+      const pos = search.selectionStart;
+      render();
+      const again = document.getElementById('desk-search');
+      again.focus();
+      again.setSelectionRange(pos, pos);
+    });
+    deskEl.querySelectorAll('[data-jump]').forEach(b => b.addEventListener('click', () => {
+      const el = document.getElementById(`letter-${b.dataset.jump}`);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
+    deskEl.querySelectorAll('[data-undo]').forEach(b => b.addEventListener('click', () => undo(Number(b.dataset.undo))));
+    deskEl.querySelectorAll('.singer-row').forEach(b => b.addEventListener('click', () => openGive(b.dataset.email)));
+  }
+
+  function openGive(email) {
+    const s = list.singers.find(x => x.Email === email);
+    if (!s) return;
+    const left = s.Requested - s.PickedUp;
+    document.getElementById('give-name').textContent = s.Name;
+    const btns = [];
+    if (left <= 0) {
+      document.getElementById('give-info').textContent = `Already picked up ${ticketWord(s.PickedUp)} at ${timeOf(s.PickedUpAt)}.`;
+    } else {
+      document.getElementById('give-info').textContent = `Requested ${ticketWord(s.Requested)}${s.PickedUp ? ` · ${s.PickedUp} already picked up` : ''}.`;
+      for (let n = left; n >= 1; n--) btns.push(`<button class="btn" data-give="${n}">Give ${ticketWord(n)}</button>`);
+    }
+    btns.push(`<button class="btn" data-give="0">Cancel</button>`);
+    const box = document.getElementById('give-btns');
+    box.innerHTML = btns.join('');
+    box.querySelectorAll('[data-give]').forEach(b => b.addEventListener('click', () => give(s, Number(b.dataset.give))));
+    modal.style.display = 'flex';
+  }
+
+  async function give(s, qty) {
+    if (!qty) { modal.style.display = 'none'; return; }
+    document.querySelectorAll('#give-btns button').forEach(b => { b.disabled = true; });
+    try {
+      const res = await call('deskGive', { showId, email: s.Email, quantity: qty });
+      if (!res.ok) alert(res.reason === 'too-many' ? `Only ${res.left} left to collect for ${s.Name}.` : 'That didn’t go through — please try again.');
+    } catch (e) {
+      alert(e.message === 'not-authorized' ? 'Your login has expired — log in again.' : 'That didn’t go through — check the connection.');
+    }
+    modal.style.display = 'none';
+    filter = '';
+    loadList();
+  }
+
+  async function undo(id) {
+    const r = list.recent.find(x => x.Id === id);
+    if (!confirm(`Undo handing ${ticketWord(r.Quantity)} to ${r.Name}?`)) return;
+    try { await call('deskUndo', { pickupId: id }); } catch (e) { alert('Undo didn’t go through — try again.'); }
+    loadList();
+  }
+
+  modal.addEventListener('click', e => { if (e.target === modal) modal.style.display = 'none'; });
+
+  document.getElementById('login-btn').addEventListener('click', async () => {
+    const username = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-pw').value;
+    if (!username || !password) return;
+    try {
+      const data = await call('login', { username, password });
+      if (!data.token) { showLogin(data.error || 'Incorrect email or password.'); return; }
+      auth = { token: data.token };
+      saveAuth(auth);
+      start();
+    } catch (e) {
+      showLogin(e.message === 'not-authorized' ? 'Incorrect email or password.' : 'Something went wrong logging in. Please try again.');
+    }
+  });
+  document.getElementById('login-pw').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('login-btn').click(); });
+
+  // Opened from My Apps Hub: adopt the ?token= it passes.
+  (function init() {
+    const token = new URLSearchParams(location.search).get('token');
+    if (token) {
+      history.replaceState({}, document.title, location.pathname);
+      auth = { token };
+      saveAuth(auth);
+    } else {
+      auth = loadAuth();
+    }
+    if (auth) start(); else showLogin();
+  })();
+</script>
+</body>
+</html>
