@@ -126,8 +126,15 @@ singer may have **in total across all showings** is the `TicketsPerSinger` Setti
 request 1 or 2 tickets, move them between showings, or return some or all, up until the deadline.
 Nobody can take more than a showing has left.
 
+**Requesting for a singer who doesn't use the app** → in the SOJO Membership app (the
+roster/attendance app), open the singer's profile and use the **Concert Tickets** card. Anyone
+with SOJO Membership access can do this for any singer, under the same limit, seat and deadline
+rules. The singer needs an email on the roster. The Seasons Chorale app's Tickets page only ever
+shows the logged-in singer's own tickets.
+
 **See who asked for what** → Reports → **Concert Tickets**. It lists each showing's singers by last
-name, with how many they requested and how many they've picked up. You can print it as a paper
+name, with how many they requested and how many they've picked up, plus who entered the request
+when it wasn't the singer. You can print it as a paper
 backup for the desk. To fix a singer's request after the deadline, edit their row in Tables →
 `TicketRequests` (Quantity 0 = none).
 

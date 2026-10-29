@@ -309,3 +309,10 @@ ON DUPLICATE KEY UPDATE name = VALUES(name), description = VALUES(description), 
 -- SELECT u.id, a.id FROM users u JOIN apps a ON a.app_key = 'sojo-ticket-desk'
 -- WHERE u.username = 'attendant@example.com'
 -- ON DUPLICATE KEY UPDATE user_id = app_access.user_id;
+
+-- ---------- SCHEMA CHANGE: tickets requested for another singer ----------
+-- SOJO Membership app users (section leaders) can request tickets for a singer
+-- from that singer's profile.
+-- entered_by is the login that last changed the request (the singer
+-- themselves, or whoever did it for them). Run before uploading api.php.
+ALTER TABLE choir_ticket_requests ADD COLUMN entered_by VARCHAR(255) NULL AFTER quantity;
