@@ -112,6 +112,18 @@ been set up yet, rather than showing something broken.
 member can tap **Copy Link** to copy that registration link to their clipboard and paste it into
 a text or email to invite someone.
 
+## Height order for the risers
+
+Reports → **Height Order (Risers)** lists every participating singer (SEQ 60 or less), sorted by
+section (Soprano, Alto, Tenor, Bass), then position, then height from shortest to tallest, then
+name. Singers whose Height is `SIT` are listed separately at the bottom, sorted by section,
+position and name. Use **Print**, or **Download CSV** to open it in Excel.
+
+Heights come from the roster's Height column. These formats are understood: `5'4"`, `5' 4`,
+`5-4`, `5 4`, `5ft 4in`, `5.4` (meaning 5'4"; use `5.10` for 5'10"), or plain inches like `64`.
+A blank or unreadable height is listed last in its position with a note, so fix it in the roster
+to put that singer in the right place.
+
 ## Complimentary concert tickets
 
 Singers request their free tickets on the **Tickets** page of the member app, and the lobby
