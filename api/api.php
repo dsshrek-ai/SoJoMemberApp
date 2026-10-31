@@ -908,6 +908,80 @@ function getAttendanceByDayReport(string $from, string $to): array {
   return ['participants' => count($participants), 'rows' => $rows];
 }
 
+// Height in inches from the roster's free-text Height, or null if it can't
+// be read. Accepts 5'4", 5' 4, 5'4'', 5-4, 5 4, 5ft 4in, 5.4 (= 5'4"),
+// 5.10 (= 5'10"), and a plain inch count like 64 or 64".
+function heightInches(string $height): ?int {
+  $h = strtolower(trim(str_replace(['’', '‘', '”', '“', "''"], ["'", "'", '"', '"', '"'], $height)));
+  if (preg_match('/^(\d)\s*(?:\'|ft\.?|feet|-|\.|\s)\s*(\d{1,2})\s*(?:"|in\.?|inches)?$/', $h, $m)) {
+    $inches = (int)$m[2];
+    return $inches < 12 ? (int)$m[1] * 12 + $inches : null;
+  }
+  if (preg_match('/^(\d)\s*(?:\'|ft\.?|feet)$/', $h, $m)) {
+    return (int)$m[1] * 12;
+  }
+  if (preg_match('/^(\d{2})\s*(?:"|in\.?|inches)?$/', $h, $m) && (int)$m[1] >= 48 && (int)$m[1] <= 90) {
+    return (int)$m[1];
+  }
+  return null;
+}
+
+// Height Order report (risers): participants (SEQ 1-60) sorted by section
+// (choir order), position, height shortest to tallest, then last/first name.
+// Singers whose Height is "SIT" are listed separately at the end, sorted by
+// section, position, then name. A height that can't be read sorts after the
+// readable ones in its position and is flagged.
+function getHeightOrderReport(): array {
+  $sectionOrder = ['soprano' => 1, 'alto' => 2, 'tenor' => 3, 'bass' => 4];
+  $standing = [];
+  $sitting = [];
+  foreach ((fetchAppsScript('getSingers')['singers'] ?? []) as $s) {
+    $seq = (int)($s['seq'] ?? 0);
+    if ($seq <= 0 || $seq > 60) {
+      continue;
+    }
+    $height = trim((string)($s['height'] ?? ''));
+    $inches = heightInches($height);
+    $row = [
+      'Section' => trim((string)($s['section'] ?? '')),
+      'Position' => trim((string)($s['position'] ?? '')),
+      'Height' => $height,
+      'Inches' => $inches,
+      'LastName' => trim((string)($s['lastname'] ?? '')),
+      'FirstName' => trim((string)($s['firstname'] ?? '')),
+      'Unreadable' => $inches === null && $height !== '' && !preg_match('/^sit\b/i', $height),
+    ];
+    if (preg_match('/^sit\b/i', $height)) {
+      $sitting[] = $row;
+    } else {
+      $standing[] = $row;
+    }
+  }
+  $bySectionPosition = function ($a, $b) use ($sectionOrder) {
+    $c = ($sectionOrder[strtolower($a['Section'])] ?? 9) <=> ($sectionOrder[strtolower($b['Section'])] ?? 9);
+    if ($c === 0) {
+      $c = strcasecmp($a['Section'], $b['Section']);
+    }
+    return $c !== 0 ? $c : strnatcasecmp($a['Position'], $b['Position']);
+  };
+  $byName = fn($a, $b) => [strtolower($a['LastName']), strtolower($a['FirstName'])]
+    <=> [strtolower($b['LastName']), strtolower($b['FirstName'])];
+  usort($standing, function ($a, $b) use ($bySectionPosition, $byName) {
+    $c = $bySectionPosition($a, $b);
+    if ($c !== 0) {
+      return $c;
+    }
+    // Unreadable/blank heights after the readable ones
+    $c = [$a['Inches'] === null, $a['Inches'] ?? 0] <=> [$b['Inches'] === null, $b['Inches'] ?? 0];
+    return $c !== 0 ? $c : $byName($a, $b);
+  });
+  usort($sitting, function ($a, $b) use ($bySectionPosition, $byName) {
+    $c = $bySectionPosition($a, $b);
+    return $c !== 0 ? $c : $byName($a, $b);
+  });
+  return ['standing' => $standing, 'sitting' => $sitting];
+}
+
 // Frequent Absences report: participants (SEQ 1-60) with more than 3
 // absences in [from, to], plus anyone who hasn't attended at all. An
 // absence is O or E (the choir treats them the same), with E also counted
@@ -1483,6 +1557,9 @@ switch ($action) {
     }
     if ($report === 'appUsage') {
       respond(['ok' => true] + getAppUsageReport($from, $to));
+    }
+    if ($report === 'heightOrder') {
+      respond(['ok' => true] + getHeightOrderReport());
     }
     if ($report === 'ticketRequests') {
       respond(['ok' => true] + getTicketRequestsReport());

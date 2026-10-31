@@ -108,6 +108,7 @@
           <option value="appUsage">App Users by Day</option>
           <option value="memberList">Member List</option>
           <option value="ticketRequests">Concert Tickets</option>
+          <option value="heightOrder">Height Order (Risers)</option>
         </select>
         <div class="report-filters" id="report-filters">
           <label>From<br><input type="date" id="report-from"></label>
@@ -117,6 +118,7 @@
         <p>
           <button id="report-run-btn" class="btn">Run Report</button>
           <button id="report-print-btn" class="btn">Print</button>
+          <button id="report-csv-btn" class="btn" style="display:none;">Download CSV</button>
         </p>
       </div>
       <div id="report-container"></div>
@@ -575,7 +577,8 @@
   function applyReportDefaults() {
     const report = reportSelect.value;
     // Member List isn't date-based, so hide the date filters for it.
-    const datesApply = report !== 'memberList' && report !== 'ticketRequests';
+    const datesApply = !['memberList', 'ticketRequests', 'heightOrder'].includes(report);
+    document.getElementById('report-csv-btn').style.display = report === 'heightOrder' ? '' : 'none';
     document.getElementById('report-filters').style.display = datesApply ? '' : 'none';
     document.getElementById('report-filters-note').style.display = datesApply ? '' : 'none';
     if (report === 'volunteerSignups') {
@@ -594,7 +597,12 @@
   document.getElementById('report-run-btn').addEventListener('click', runReport);
   document.getElementById('report-print-btn').addEventListener('click', () => window.print());
 
+  // Switching reports quickly can leave an older request still in flight;
+  // only the latest one gets drawn (otherwise its data hits the wrong renderer).
+  let reportRequestId = 0;
+
   async function runReport() {
+    const requestId = ++reportRequestId;
     reportContainer.innerHTML = 'Loading…';
     let result;
     try {
@@ -602,9 +610,11 @@
         report: reportSelect.value, from: reportFrom.value, to: reportTo.value,
       });
     } catch (e) {
+      if (requestId !== reportRequestId) return;
       reportContainer.innerHTML = `<p class="placeholder-note">Couldn't run the report. Please try again.</p>`;
       return;
     }
+    if (requestId !== reportRequestId) return;
     if (!result.ok) {
       if (/session|authoriz/i.test(result.error || '')) {
         showLogin('Your saved login stopped working. Please log in again.');
@@ -623,6 +633,8 @@
       renderAppUsageReport(result);
     } else if (reportSelect.value === 'ticketRequests') {
       renderTicketRequestsReport(result);
+    } else if (reportSelect.value === 'heightOrder') {
+      renderHeightOrderReport(result);
     } else {
       renderVolunteerSignupsReport(result.rows);
     }
@@ -691,6 +703,66 @@
       <p><strong>${result.rows.length} people</strong> &middot; each listed once, in their highest group</p>
       ${sections || '<p class="placeholder-note">No one found.</p>'}`;
   }
+
+  // ---- Height Order (Risers) ----
+  // Rows come pre-sorted from the server: standing singers by section,
+  // position, height (shortest first), name; then everyone marked SIT.
+  let heightOrderResult = null;
+
+  function renderHeightOrderReport(result) {
+    heightOrderResult = result;
+    const table = (rows, showHeight) => `
+      <div class="admin-table-wrap">
+        <table class="admin-table">
+          <thead><tr>
+            <th scope="col">#</th><th scope="col">Section</th><th scope="col">Position</th>
+            <th scope="col">Height</th><th scope="col">Name</th>
+          </tr></thead>
+          <tbody>${rows.map((r, i) => `
+            <tr${i > 0 && (rows[i - 1].Section !== r.Section || rows[i - 1].Position !== r.Position) ? ' class="report-task-start"' : ''}>
+              <td>${i + 1}</td>
+              <td>${escapeHtml(r.Section)}</td>
+              <td>${escapeHtml(r.Position)}</td>
+              <td>${escapeHtml(r.Height) || '<em>blank</em>'}${showHeight && r.Unreadable ? ' <em>(can\u2019t read)</em>' : ''}</td>
+              <td>${escapeHtml(`${r.LastName}, ${r.FirstName}`)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+    const unreadable = result.standing.filter(r => r.Inches === null).length;
+    reportContainer.innerHTML = `<h2>Height Order (Risers)</h2>
+      <p><strong>${result.standing.length}</strong> standing &middot; <strong>${result.sitting.length}</strong> sitting
+        &middot; participants only (SEQ 60 or less)</p>
+      ${unreadable ? `<p class="placeholder-note">${unreadable} singer${unreadable === 1 ? '' : 's'} with a blank or unreadable height
+        ${unreadable === 1 ? 'is' : 'are'} listed last in their position. Fix the Height in the roster to place them.</p>` : ''}
+      ${result.standing.length ? table(result.standing, true) : '<p class="placeholder-note">No one found.</p>'}
+      <h3>Sitting</h3>
+      ${result.sitting.length ? table(result.sitting, false) : '<p class="placeholder-note">No one is marked SIT.</p>'}`;
+  }
+
+  function csvCell(v) {
+    const t = String(v ?? '');
+    return /[",\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+  }
+
+  document.getElementById('report-csv-btn').addEventListener('click', () => {
+    if (!heightOrderResult) {
+      return;
+    }
+    const lines = [['Order', 'Section', 'Position', 'Height', 'Last Name', 'First Name', 'Stand/Sit']];
+    let n = 0;
+    heightOrderResult.standing.forEach(r => lines.push([++n, r.Section, r.Position, r.Height, r.LastName, r.FirstName, 'Stand']));
+    heightOrderResult.sitting.forEach(r => lines.push([++n, r.Section, r.Position, r.Height, r.LastName, r.FirstName, 'Sit']));
+    // BOM so Excel opens accented names correctly
+    const blob = new Blob(['\ufeff' + lines.map(l => l.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `height-order-${todayIso()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
 
   function renderTicketRequestsReport(result) {
     const sections = result.shows.map(s => {
