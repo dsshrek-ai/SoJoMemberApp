@@ -64,6 +64,9 @@
   .report-filters { display: flex; flex-wrap: wrap; gap: 1rem; }
   table.admin-table tr.report-task-start td { border-top: 2px solid var(--color-primary); }
   .report-open { font-style: italic; opacity: 0.7; }
+  /* Program List: names flow into columns, kept whole across columns/pages */
+  ul.program-names { list-style: none; padding: 0; margin: 0.25rem 0 1rem; columns: 3 12rem; column-gap: 2rem; }
+  ul.program-names li { break-inside: avoid; padding: 0.1rem 0; }
   @media print {
     .site-header, .site-footer, .skip-link, .no-print { display: none !important; }
     table.admin-table th { background: none; }
@@ -109,6 +112,7 @@
           <option value="memberList">Member List</option>
           <option value="ticketRequests">Concert Tickets</option>
           <option value="heightOrder">Height Order (Risers)</option>
+          <option value="programList">Program List</option>
         </select>
         <div class="report-filters" id="report-filters">
           <label>From<br><input type="date" id="report-from"></label>
@@ -577,8 +581,8 @@
   function applyReportDefaults() {
     const report = reportSelect.value;
     // Member List isn't date-based, so hide the date filters for it.
-    const datesApply = !['memberList', 'ticketRequests', 'heightOrder'].includes(report);
-    document.getElementById('report-csv-btn').style.display = report === 'heightOrder' ? '' : 'none';
+    const datesApply = !['memberList', 'ticketRequests', 'heightOrder', 'programList'].includes(report);
+    document.getElementById('report-csv-btn').style.display = CSV_REPORTS.includes(report) ? '' : 'none';
     document.getElementById('report-filters').style.display = datesApply ? '' : 'none';
     document.getElementById('report-filters-note').style.display = datesApply ? '' : 'none';
     if (report === 'volunteerSignups') {
@@ -603,6 +607,7 @@
 
   async function runReport() {
     const requestId = ++reportRequestId;
+    csvExport = null;
     reportContainer.innerHTML = 'Loading…';
     let result;
     try {
@@ -635,6 +640,8 @@
       renderTicketRequestsReport(result);
     } else if (reportSelect.value === 'heightOrder') {
       renderHeightOrderReport(result);
+    } else if (reportSelect.value === 'programList') {
+      renderProgramListReport(result);
     } else {
       renderVolunteerSignupsReport(result.rows);
     }
@@ -704,13 +711,46 @@
       ${sections || '<p class="placeholder-note">No one found.</p>'}`;
   }
 
+  // What "Download CSV" saves for the report on screen: { filename, lines },
+  // set by each report that offers a CSV (see CSV_REPORTS).
+  let csvExport = null;
+  const CSV_REPORTS = ['heightOrder', 'programList'];
+
+  // ---- Program List ----
+  // Rows come pre-sorted from the server (SEQ 10-60): section, position,
+  // last name. Shown "First Last", grouped by position, for the printed program.
+  function renderProgramListReport(result) {
+    const rows = result.rows;
+    csvExport = {
+      filename: `program-list-${todayIso()}.csv`,
+      lines: [['Section', 'Position', 'Name', 'First Name', 'Last Name'],
+        ...rows.map(r => [r.Section, r.Position, r.Name, r.FirstName, r.LastName])],
+    };
+    const groups = [];
+    rows.forEach(r => {
+      const label = r.Position || r.Section || 'Other';
+      if (!groups.length || groups[groups.length - 1].label !== label) {
+        groups.push({ label, names: [] });
+      }
+      groups[groups.length - 1].names.push(r.Name);
+    });
+    reportContainer.innerHTML = `<h2>Program List</h2>
+      <p><strong>${rows.length}</strong> singers &middot; SEQ 10&ndash;60, by section, position and last name</p>
+      ${groups.map(g => `
+        <h3>${escapeHtml(g.label)} <span class="report-open">(${g.names.length})</span></h3>
+        <ul class="program-names">${g.names.map(n => `<li>${escapeHtml(n)}</li>`).join('')}</ul>`).join('')
+        || '<p class="placeholder-note">No one found.</p>'}`;
+  }
+
   // ---- Height Order (Risers) ----
   // Rows come pre-sorted from the server: standing singers by section,
   // position, height (shortest first), name; then everyone marked SIT.
-  let heightOrderResult = null;
-
   function renderHeightOrderReport(result) {
-    heightOrderResult = result;
+    const csvLines = [['Order', 'Section', 'Position', 'Height', 'Last Name', 'First Name', 'Stand/Sit']];
+    let n = 0;
+    result.standing.forEach(r => csvLines.push([++n, r.Section, r.Position, r.Height, r.LastName, r.FirstName, 'Stand']));
+    result.sitting.forEach(r => csvLines.push([++n, r.Section, r.Position, r.Height, r.LastName, r.FirstName, 'Sit']));
+    csvExport = { filename: `height-order-${todayIso()}.csv`, lines: csvLines };
     const table = (rows, showHeight) => `
       <div class="admin-table-wrap">
         <table class="admin-table">
@@ -746,18 +786,14 @@
   }
 
   document.getElementById('report-csv-btn').addEventListener('click', () => {
-    if (!heightOrderResult) {
+    if (!csvExport) {
       return;
     }
-    const lines = [['Order', 'Section', 'Position', 'Height', 'Last Name', 'First Name', 'Stand/Sit']];
-    let n = 0;
-    heightOrderResult.standing.forEach(r => lines.push([++n, r.Section, r.Position, r.Height, r.LastName, r.FirstName, 'Stand']));
-    heightOrderResult.sitting.forEach(r => lines.push([++n, r.Section, r.Position, r.Height, r.LastName, r.FirstName, 'Sit']));
     // BOM so Excel opens accented names correctly
-    const blob = new Blob(['\ufeff' + lines.map(l => l.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const blob = new Blob(['\ufeff' + csvExport.lines.map(l => l.map(csvCell).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `height-order-${todayIso()}.csv`;
+    a.download = csvExport.filename;
     document.body.appendChild(a);
     a.click();
     a.remove();

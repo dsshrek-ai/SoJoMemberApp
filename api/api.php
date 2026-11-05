@@ -931,8 +931,53 @@ function heightInches(string $height): ?int {
 // Singers whose Height is "SIT" are listed separately at the end, sorted by
 // section, position, then name. A height that can't be read sorts after the
 // readable ones in its position and is flagged.
-function getHeightOrderReport(): array {
+// Orders roster rows (keyed Section/Position) the way the choir lists them:
+// Soprano, Alto, Tenor, Bass (anything else after), then position, so
+// "Soprano - 1st" comes before "Soprano - 2nd".
+function compareSectionPosition(array $a, array $b): int {
   $sectionOrder = ['soprano' => 1, 'alto' => 2, 'tenor' => 3, 'bass' => 4];
+  $c = ($sectionOrder[strtolower($a['Section'])] ?? 9) <=> ($sectionOrder[strtolower($b['Section'])] ?? 9);
+  if ($c === 0) {
+    $c = strcasecmp($a['Section'], $b['Section']);
+  }
+  return $c !== 0 ? $c : strnatcasecmp($a['Position'], $b['Position']);
+}
+
+function compareLastFirst(array $a, array $b): int {
+  return [strtolower($a['LastName']), strtolower($a['FirstName'])]
+    <=> [strtolower($b['LastName']), strtolower($b['FirstName'])];
+}
+
+// Printed-program list: singers in SEQ 10-60 by section, position, then last
+// name (first name breaks ties), shown as "First Last".
+function getProgramListReport(): array {
+  $rows = [];
+  foreach ((fetchAppsScript('getSingers')['singers'] ?? []) as $s) {
+    $seq = (int)($s['seq'] ?? 0);
+    if ($seq < 10 || $seq > 60) {
+      continue;
+    }
+    $first = trim((string)($s['firstname'] ?? ''));
+    $last = trim((string)($s['lastname'] ?? ''));
+    if ($first === '' && $last === '') {
+      continue;
+    }
+    $rows[] = [
+      'Section' => trim((string)($s['section'] ?? '')),
+      'Position' => trim((string)($s['position'] ?? '')),
+      'FirstName' => $first,
+      'LastName' => $last,
+      'Name' => trim("$first $last"),
+    ];
+  }
+  usort($rows, function ($a, $b) {
+    $c = compareSectionPosition($a, $b);
+    return $c !== 0 ? $c : compareLastFirst($a, $b);
+  });
+  return ['rows' => $rows];
+}
+
+function getHeightOrderReport(): array {
   $standing = [];
   $sitting = [];
   foreach ((fetchAppsScript('getSingers')['singers'] ?? []) as $s) {
@@ -957,27 +1002,18 @@ function getHeightOrderReport(): array {
       $standing[] = $row;
     }
   }
-  $bySectionPosition = function ($a, $b) use ($sectionOrder) {
-    $c = ($sectionOrder[strtolower($a['Section'])] ?? 9) <=> ($sectionOrder[strtolower($b['Section'])] ?? 9);
-    if ($c === 0) {
-      $c = strcasecmp($a['Section'], $b['Section']);
-    }
-    return $c !== 0 ? $c : strnatcasecmp($a['Position'], $b['Position']);
-  };
-  $byName = fn($a, $b) => [strtolower($a['LastName']), strtolower($a['FirstName'])]
-    <=> [strtolower($b['LastName']), strtolower($b['FirstName'])];
-  usort($standing, function ($a, $b) use ($bySectionPosition, $byName) {
-    $c = $bySectionPosition($a, $b);
+  usort($standing, function ($a, $b) {
+    $c = compareSectionPosition($a, $b);
     if ($c !== 0) {
       return $c;
     }
     // Unreadable/blank heights after the readable ones
     $c = [$a['Inches'] === null, $a['Inches'] ?? 0] <=> [$b['Inches'] === null, $b['Inches'] ?? 0];
-    return $c !== 0 ? $c : $byName($a, $b);
+    return $c !== 0 ? $c : compareLastFirst($a, $b);
   });
-  usort($sitting, function ($a, $b) use ($bySectionPosition, $byName) {
-    $c = $bySectionPosition($a, $b);
-    return $c !== 0 ? $c : $byName($a, $b);
+  usort($sitting, function ($a, $b) {
+    $c = compareSectionPosition($a, $b);
+    return $c !== 0 ? $c : compareLastFirst($a, $b);
   });
   return ['standing' => $standing, 'sitting' => $sitting];
 }
@@ -1557,6 +1593,9 @@ switch ($action) {
     }
     if ($report === 'appUsage') {
       respond(['ok' => true] + getAppUsageReport($from, $to));
+    }
+    if ($report === 'programList') {
+      respond(['ok' => true] + getProgramListReport());
     }
     if ($report === 'heightOrder') {
       respond(['ok' => true] + getHeightOrderReport());

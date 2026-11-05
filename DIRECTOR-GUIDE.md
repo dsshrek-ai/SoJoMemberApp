@@ -112,6 +112,14 @@ been set up yet, rather than showing something broken.
 member can tap **Copy Link** to copy that registration link to their clipboard and paste it into
 a text or email to invite someone.
 
+## Names for the printed program
+
+Reports → **Program List** lists every singer with SEQ 10 through 60, grouped by position
+(Soprano - 1st, Soprano - 2nd, Alto, Tenor, Bass) and sorted by last name within each, but
+written "First Last" the way a program prints them. Use **Print**, or **Download CSV** to paste
+the names into the program layout. The CSV has Section, Position, Name, First Name and Last Name
+columns.
+
 ## Height order for the risers
 
 Reports → **Height Order (Risers)** lists every participating singer (SEQ 60 or less), sorted by
